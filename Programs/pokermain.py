@@ -5,6 +5,7 @@ Created on Sat Oct 14 22:06:02 2017
 @author: SrivatsanPC
 """
 import pokerconst as pc
+from sklearn.utils import shuffle
 
 
 class Card:
@@ -30,7 +31,7 @@ class Card:
         return v
 
 
-class Hand:
+class Player:
     serial = 0
 
     def __init__(self, name, table, strategy='Random'):
@@ -45,8 +46,8 @@ class Hand:
         table.players.append(self)
         self.name = name
 
-        Hand.serial += 1
-        self.position = Hand.serial
+        Player.serial += 1
+        self.position = Player.serial
         self.small_blind = False
         self.big_blind = False
         self.dealer = False
@@ -217,15 +218,14 @@ class Hand:
         self.cards.append(cards)
 
 
-# __________represents the card deck - shuffled each round
-
-class Deck(Hand):
+class Deck(Player):  # @todo: why is it a subclass of Player ?
+    """represents the card deck - shuffled each round"""
     def __init__(self):
 
         self.cards = []
 
     def populate(self):
-
+        """Create the deck"""
         for rank in Card.RANKS:
 
             for suit in Card.SUITS:
@@ -233,11 +233,11 @@ class Deck(Hand):
                 self.cards.append(card)
 
     def shuffle(self):
-
-        random.shuffle(self.cards)
+        """shuffle the deck"""
+        shuffle(self.cards)
 
     def print_cards(self):
-
+        """print the cards"""
         rep = ''
 
         for card in self.cards:
@@ -245,8 +245,8 @@ class Deck(Hand):
 
         print(rep)
 
-    def deal_to(self, hand, cards=1, faceup=True):
-
+    def deal_to(self, player, cards=1, faceup=True):
+        """Deal cards to a player"""
         if len(self.cards) < cards:
             print('not enough cards to deal')
 
@@ -263,12 +263,11 @@ class Deck(Hand):
                 dealt.append(self.cards.pop())
 
             for card in dealt:
-                hand.add(card)
+                player.add(card)
 
 
-# __________________represents the overall game
-
-class Table(Hand):
+class Table(Player):  # @todo: why is Table a subclass of Player ?
+    """represents the overall game"""
     def __init__(self):
 
         self.cards = []
@@ -279,7 +278,7 @@ class Table(Hand):
         self.blinds_timer = 0
 
     def print_cards(self):
-
+        """Print the cards of the board and of the players"""
         rep = 'Community cards_______________\n'
 
         if self.is_folded:
@@ -294,18 +293,17 @@ class Table(Hand):
         print(rep)
 
     def print_players(self):
-
+        """print players"""
         for player in self.players:
             print(player)
 
     def clear(self):
-
+        """Remove the cards"""
         self.cards = []
 
 
-# _______________POT represents the pot for each individual round of play
-
 class Pot(object):
+    """Pot represents the pot for each individual round of play"""
     stage_dict = {0: 'pre-flop bet', 1: 'dealing the flop', 2: 'dealing the turn', 3: 'dealing the river'}
     deal_sequence = [0, 3, 1, 1]
     pot_number = 0
@@ -314,7 +312,7 @@ class Pot(object):
         self.players = []
         self.folded_players = []
         self.active_players = []
-        self.limpers = 0
+        self.limpers = 0  # lol
         self.name = name
         self.blinds = BLINDS
 
@@ -379,14 +377,15 @@ class Pot(object):
             return next_up
 
 
-class Side_pot(Pot):
+class SidePot(Pot):
+    """The pot of a given round of betting that hasn't yet come to an end"""
     serial = 0
 
     def __init__(self, parent):
         Pot.__init__(self, parent, Pot)
         self.button = parent.button
-        Side_pot.serial += 1
-        self.name = 'side pot ' + str(Side_pot.serial)
+        SidePot.serial += 1
+        self.name = 'side pot ' + str(SidePot.serial)
         self.players = []
 
 
@@ -430,7 +429,7 @@ def next_player(pot, is_raise=False):
 def next_hand(table, deck):
     table.clear()
     deck.clear()
-    Side_pot.serial = 0
+    SidePot.serial = 0
     for hand in table.players:
         hand.clear()
         hand.small_blind = False
@@ -530,7 +529,7 @@ def betting_round(pot, table):
             print('refund...' + str(refund))
 
         if create_side_pot:
-            sidepot = Side_pot(pot)
+            sidepot = SidePot(pot)
             for player in next_pot_players:
                 sidepot.players.append(player)
                 sidepot.total += player.carry_over
@@ -612,8 +611,8 @@ status = 'setup'
 BLINDS = [10, 20]
 table = Table()
 deck = Deck()
-player1 = Hand('SB', table)
-player2 = Hand('DH', table)
+player1 = Player('SB', table)
+player2 = Player('DH', table)
 
 status = 'play'
 
