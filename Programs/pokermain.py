@@ -5,6 +5,10 @@ Created on Sat Oct 14 22:06:02 2017
 @author: SrivatsanPC
 """
 import pokerconst as pc
+import pokerstrat
+from operator import attrgetter
+import random 
+import pokerhands
 
 class Card:
 
