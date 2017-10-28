@@ -5,8 +5,12 @@ Created on Sat Oct 14 22:06:02 2017
 @author: SrivatsanPC
 """
 import pokerconst as pc
+import pokerstrat
+from operator import attrgetter
+import random 
+import pokerhands
 from sklearn.utils import shuffle
-
+import pdb
 
 class Card:
     RANKS = pc.RANKS
@@ -197,14 +201,16 @@ class Player:
             pot.to_play = BLINDS[1]
             self.in_pot += BLINDS[1]
 
-    def bust(self):
-
+    def bust(self):      
         print(str(self.name) + ' is bust')
         list_index = table.players.index(self)
         for p in table.players[list_index + 1:]:
             p.position -= 1
+        
+        #pdb.set_trace()
 
         table.players.remove(self)
+        #pdb.set_trace()
 
     def clear(self):
 
@@ -358,6 +364,8 @@ class Pot(object):
         return rep
 
     def set_blinds(self):
+        #if self.table_size == 0 :
+            #pdb.set_trace()
         dealer = (self.button) % self.table_size
         small_blind = (self.button + 1) % self.table_size
         big_blind = (self.button + 2) % self.table_size
@@ -652,12 +660,15 @@ while status == 'play':
 
     for player in table.players[:]:
         print(player.name, player.stack, BLINDS[1])
-        if player.stack <= BLINDS[1]:
+        if player.stack <= BLINDS[1]:            
             player.bust()
-
+            #pdb.set_trace()
+            break #You can break here in a two player game.
+              
     if len(table.players) == 1:
         status = 'winner'
-
+        break
+     
     next_hand(table, deck)
 
 for player in table.players:

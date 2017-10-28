@@ -22,7 +22,8 @@ def is_straight(values, length):
     for low in (10, 9, 8, 7, 6, 5, 4, 3, 2, 1):
         needed = set(range(low, low + length))
         if len(needed - hand) <= 0:
-            return (low + length) - 1
+            return (low+length)-1  
+    return 0
 
 
 def evaluate_hand(cards):
@@ -63,7 +64,6 @@ def evaluate_hand(cards):
         if value > 1:
             high_card = False
             multiples_l[value].append(key)
-
             for element in values:
                 if element == key:
                     remove_list.append(element)
