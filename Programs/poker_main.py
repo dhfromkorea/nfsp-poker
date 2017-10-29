@@ -7,10 +7,11 @@ Created on Sat Oct 14 22:06:02 2017
 import pokerconst as pc
 import pokerstrat
 from operator import attrgetter
-import random 
+import random
 import pokerhands
 from sklearn.utils import shuffle
 import pdb
+
 
 class Card:
     RANKS = pc.RANKS
@@ -201,16 +202,16 @@ class Player:
             pot.to_play = BLINDS[1]
             self.in_pot += BLINDS[1]
 
-    def bust(self):      
+    def bust(self):
         print(str(self.name) + ' is bust')
         list_index = table.players.index(self)
         for p in table.players[list_index + 1:]:
             p.position -= 1
-        
-        #pdb.set_trace()
+
+        # pdb.set_trace()
 
         table.players.remove(self)
-        #pdb.set_trace()
+        # pdb.set_trace()
 
     def clear(self):
 
@@ -226,6 +227,7 @@ class Player:
 
 class Deck(Player):  # @todo: why is it a subclass of Player ?
     """represents the card deck - shuffled each round"""
+
     def __init__(self):
 
         self.cards = []
@@ -240,7 +242,7 @@ class Deck(Player):  # @todo: why is it a subclass of Player ?
 
     def shuffle(self):
         """shuffle the deck"""
-        shuffle(self.cards)
+        self.cards = shuffle(self.cards)
 
     def print_cards(self):
         """print the cards"""
@@ -274,6 +276,7 @@ class Deck(Player):  # @todo: why is it a subclass of Player ?
 
 class Table(Player):  # @todo: why is Table a subclass of Player ?
     """represents the overall game"""
+
     def __init__(self):
 
         self.cards = []
@@ -364,8 +367,8 @@ class Pot(object):
         return rep
 
     def set_blinds(self):
-        #if self.table_size == 0 :
-            #pdb.set_trace()
+        # if self.table_size == 0 :
+        # pdb.set_trace()
         dealer = (self.button) % self.table_size
         small_blind = (self.button + 1) % self.table_size
         big_blind = (self.button + 2) % self.table_size
@@ -467,14 +470,14 @@ def betting_round(pot, table):
     create_side_pot = False
     side_potters = []
 
-    while pot.no_raise < (pot.table_size):
-        next_up = (int(pot.who_plays) + (pot.turn)) % pot.table_size
+    while pot.no_raise < pot.table_size:
+        next_up = (int(pot.who_plays) + pot.turn) % pot.table_size
         player = pot.players[next_up]
         player.to_play = (pots[-1].to_play - player.in_pot)
         if player.to_play < 0:
             player.to_play = 0
 
-        if pots[-1].is_frozen == False:
+        if not pots[-1].is_frozen:
             if player in pots[-1].active_players:
                 print(str(player.name) + ' to play' + str(player.to_play) + '\n')
                 for strategy in player.strategy:
@@ -560,7 +563,7 @@ def betting_round(pot, table):
             player.raised = 0
 
 
-        # reset various pot variables for next betting round
+            # reset various pot variables for next betting round
 
     pots[0].no_raise = 0
     pots[0].to_play = 0
@@ -615,61 +618,62 @@ def showdown(pot):
 
 
 ####################################################################################
-status = 'setup'
-BLINDS = [10, 20]
-table = Table()
-deck = Deck()
-player1 = Player('SB', table)
-player2 = Player('DH', table)
+if __name__ == '__main__':
+    status = 'setup'
+    BLINDS = [10, 20]
+    table = Table()
+    deck = Deck()
+    player1 = Player('SB', table)
+    player2 = Player('DH', table)
 
-status = 'play'
+    status = 'play'
 
-while status == 'play':
-    deck.populate()
-    deck.shuffle()
+    while status == 'play':
+        deck.populate()
+        deck.shuffle()
 
-    # create pot for this hand
-    pots = []
-    pot = Pot(table, 'main')
+        # create pot for this hand
+        pots = []
+        pot = Pot(table, 'main')
+        for player in table.players:
+            pot.players.append(player)
+            pot.active_players.append(player)
+
+        pots.append(pot)
+        pot.set_blinds()
+
+        print('Hand#' + str(table.hands))
+        print('Blinds: ' + str(BLINDS))
+
+        ante_up(pot)
+
+        while pot.stage < 4:
+            deck.deal_to(table, Pot.deal_sequence[pot.stage], True)
+            print(str(Pot.stage_dict[pot.stage]))
+            table.print_cards()
+            betting_round(pots[-1], table)
+
+        if len(table.players) > 1:
+            for pot in pots:
+                showdown(pot)
+
+        table.hands += 1
+        table.blinds_timer = table.hands % 6
+        if table.blinds_timer == 5:
+            BLINDS[:] = [x * 2 for x in BLINDS]
+
+        for player in table.players[:]:
+            print(player.name, player.stack, BLINDS[1])
+            if player.stack <= BLINDS[1]:
+                player.bust()
+                # pdb.set_trace()
+                break  # You can break here in a two player game.
+
+        if len(table.players) == 1:
+            status = 'winner'
+            break
+
+        next_hand(table, deck)
+
     for player in table.players:
-        pot.players.append(player)
-        pot.active_players.append(player)
-
-    pots.append(pot)
-    pot.set_blinds()
-
-    print('Hand#' + str(table.hands))
-    print('Blinds: ' + str(BLINDS))
-
-    ante_up(pot)
-
-    while pot.stage < 4:
-        deck.deal_to(table, Pot.deal_sequence[pot.stage], True)
-        print(str(Pot.stage_dict[pot.stage]))
-        table.print_cards()
-        betting_round(pots[-1], table)
-
-    if len(table.players) > 1:
-        for pot in pots:
-            showdown(pot)
-
-    table.hands += 1
-    table.blinds_timer = table.hands % 6
-    if table.blinds_timer == 5:
-        BLINDS[:] = [x * 2 for x in BLINDS]
-
-    for player in table.players[:]:
-        print(player.name, player.stack, BLINDS[1])
-        if player.stack <= BLINDS[1]:            
-            player.bust()
-            #pdb.set_trace()
-            break #You can break here in a two player game.
-              
-    if len(table.players) == 1:
-        status = 'winner'
-        break
-     
-    next_hand(table, deck)
-
-for player in table.players:
-    print(str(player.name) + ' wins the game')
+        print(str(player.name) + ' wins the game')
