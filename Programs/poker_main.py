@@ -11,11 +11,14 @@ import random
 import pokerhands
 from sklearn.utils import shuffle
 import pdb
+import numpy as np
 
 
 class Card:
     RANKS = pc.RANKS
     SUITS = pc.SUITS
+    RANKS_dict = {v: k for k, v in enumerate(RANKS)}
+    SUITS_dict = {v: k for k, v in enumerate(SUITS)}
 
     def __init__(self, rank, suit, faceup=True):
         self.rank = rank
@@ -34,6 +37,11 @@ class Card:
     def value(self):
         v = self.__value
         return v
+
+    def to_matrix(self):
+        card = np.zeros((13, 4))
+        card[self.RANKS_dict[self.rank], self.SUITS_dict[self.suit]] = 1
+        return card
 
 
 class Player:
@@ -309,6 +317,25 @@ class Table(Player):  # @todo: why is Table a subclass of Player ?
     def clear(self):
         """Remove the cards"""
         self.cards = []
+
+    def to_matrix(self):
+        """
+        Put the board in a matrix form
+        Also returns the dealer
+        """
+        board = np.zeros((3, 13, 4))
+        if len(self.cards) in [1, 2]:  # impossible
+            raise ValueError('There should be either 0, 3, 4 or 5 cards on the board')
+        elif len(self.cards) == 3:  # flop
+            board[0] = self.cards[0].to_matrix() + self.cards[1].to_matrix() + self.cards[2].to_matrix()
+        elif len(self.cards) == 4:  # turn
+            board[0] = self.cards[0].to_matrix() + self.cards[1].to_matrix() + self.cards[2].to_matrix()
+            board[1] = self.cards[3].to_matrix()
+        elif len(self.cards) == 5:  # river
+            board[0] = self.cards[0].to_matrix() + self.cards[1].to_matrix() + self.cards[2].to_matrix()
+            board[1] = self.cards[3].to_matrix()
+            board[2] = self.cards[4].to_matrix()
+        return board, self.button
 
 
 class Pot(object):
