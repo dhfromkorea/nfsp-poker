@@ -1,3 +1,17 @@
+"""
+Define classes for :
+    - Card
+    - Deck (a set of cards)
+    - Player (two cards, a stack, dealer or not, all in or not)
+    - Action (the bets)
+
+Setting the blinds, the dealer button, deal cards
+
+Evaluate what hand is better
+
+
+"""
+
 from itertools import product
 from sklearn.utils import shuffle
 from collections import Counter
@@ -60,8 +74,7 @@ class Player:
                 if self.verbose:
                     print(self.name + ' did nothing (all in)')
                 return Action('null')
-        action = self.strategy(self.id, self.is_dealer, self.cards, board, pot, actions, b_round, opponent_stack,
-                               verbose=self.verbose, player_name=self.name)
+        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, verbose=self.verbose)
         self.stack -= action.value
         return action
 
