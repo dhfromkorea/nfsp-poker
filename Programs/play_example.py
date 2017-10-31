@@ -1,15 +1,39 @@
 from utils import *
 from strategies import strategy_limper
+from time import time
+
 
 verbose = True
 
 # instantiate game
 deck = Deck()
-players = [Player(0, strategy_limper, 1000, verbose=True, name='SB'), Player(1, strategy_limper, 1000, verbose=True, name='DH')]
+players = [Player(0, strategy_limper, 1000, verbose=True, name='SB'),
+           Player(1, strategy_limper, 1000, verbose=True, name='DH')]
 board = []
 dealer = set_dealer(players)
+MEMORY = []  # a list of dicts with keys s,a,r,s'
+new_game = True
+episodes = 0
+games = {'n': 0, '#episodes': []}
+t0 = time()
 
 while True:
+    # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
+    if new_game:
+        games['n'] += 1
+        games['#episodes'].append(episodes)
+        episodes = 0
+        if verbose:
+            print('####################'
+                  'New game (%s) starts.\n'
+                  'Players get cash\n'
+                  'Last game lasted %.1f\n'
+                  'Memory contains %s transitions\n'
+                  '####################' % (str(games), time() - t0, str(len(MEMORY))))
+            t0 = time()
+        players[0].cash(1000)
+        players[1].cash(1000)
+
     # put blinds
     pot = blinds(players, verbose=verbose)
 
@@ -21,44 +45,122 @@ while True:
     # keep track of actions of each player for this episode
     actions = {b_round: {player: [] for player in range(2)} for b_round in range(4)}
 
-    # fold checkbox
+    # dramatic events monitoring
     fold_occured = False
+    all_in = 0  # 0, 1 or 2. If 2, the one of the player is all-in and the other is either all-in or called. In that case, things should be treated differently
 
     # betting rounds
     for b_round in range(4):
-        # deal cards
-        deal(deck, players, board, b_round, verbose=verbose)
+        # differentiate the case where players are all-in from the one where none of them is
+        if all_in != 2:
+            # deal cards
+            deal(deck, players, board, b_round, verbose=verbose)
+            agreed = False
 
-        # play
-        agreed = False
-        if b_round != 0:
-            to_play = (dealer + 1) % 2
-        else:
-            to_play = dealer
-        while not agreed:
-            player = players[to_play]
-            action = player.play(board, pot, actions, b_round, players[(to_play + 1) % 2].stack)
-            pot += action.value
-            actions[b_round][player.id].append(action)
+            # play
+            if b_round != 0:
+                to_play = 1 - dealer
+            else:
+                to_play = dealer
 
-            # break if fold
-            if action.type == 'fold':
-                fold_occured = True
-                winner = (to_play + 1) % 2
+            while not agreed:
+                player = players[to_play]
+                action = player.play(board, pot, actions, b_round, players[1 - to_play].stack)
+
+                ##### RL #####
+                # Store transitions in memory. Just for the current player
+                if player.id == 0:
+                    state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
+                              np.array(BLINDS), dealer, actions_to_array(actions)]
+                    action_ = action_to_array(action)
+                    reward_ = -action.value
+                    transition = {'s': state_, 'a': action_, 'r': reward_}
+                    if len(MEMORY) > 0 and not new_game:  # don't take into account transitions overlapping two different games
+                        MEMORY[-1]["s'"] = state_
+                    MEMORY.append(transition)
+                ##############
+
+                pot += action.value
+                actions[b_round][player.id].append(action)
+                if action.type == 'all in':
+                    all_in += 1
+                if (action.type == 'call' or action.type == 'bet') and (all_in == 1):
+                    all_in += 1
+
+                # break if fold
+                if action.type == 'fold':
+                    fold_occured = True
+                    winner = 1 - to_play
+                    if verbose:
+                        print(players[winner].name + ' wins because its opponent folded')
+                    break
+
+                # decide if it is the end of the betting round
+                agreed = agreement(actions, b_round)
+                to_play = 1 - to_play
+
+            # potentially stop the episode
+            if fold_occured:
                 break
+        else:
+            # deal all remaining cards
+            for j in range(b_round, 4):
+                deal(deck, players, board, j, verbose=verbose)
+            agreed = True
+            state_ = [cards_to_array(players[0].cards), cards_to_array(board), pot, players[0].stack, players[1].stack,
+                      np.array(BLINDS), dealer, actions_to_array(actions)]
+            # keep track of new state
+            MEMORY[-1]["s'"] = state_
 
-            # decide if it is the end of the betting round
-            agreed = agreement(actions, b_round)
-            to_play = (to_play + 1) % 2
-
-        if fold_occured:
+            # end the episode
             break
 
     # winner gets money and variables are updated
+    split = False
     if not fold_occured:
-        winner = compare_hands(players)
-    players[winner].stack += pot
+        hand_1 = evaluate_hand(players[1].cards+board)
+        hand_0 = evaluate_hand(players[0].cards+board)
+        if hand_1[1] == hand_0[1]:
+            split = True
+        else:
+            winner = int(hand_1[1] > hand_0[1])
+        if verbose:
+            if not split:
+                print(players[0].name + ' cards : ' + str(players[0].cards) + ' and score: ' + str(hand_0[0]))
+                print(players[1].name + ' cards : ' + str(players[1].cards) + ' and score: ' + str(hand_1[0]))
+                print(players[winner].name + ' wins')
+            else:
+                print(players[0].name + ' cards : ' + str(players[0].cards) + ' and score: ' + str(hand_0[0]))
+                print(players[1].name + ' cards : ' + str(players[1].cards) + ' and score: ' + str(hand_1[0]))
+                print('Pot split')
+    if not split:
+        players[winner].stack += pot
+        ##### RL #####
+        # If the agent won, gives it the chips
+        if winner == 0:
+            MEMORY[-1]['r'] += pot
+        ##############
+    else:
+        pot_0, pot_1 = split_pot(actions, dealer)
+        players[0].stack += pot_0
+        players[1].stack += pot_1
+        ##### RL #####
+        MEMORY[-1]['r'] += pot_0
+        ##############
+
     pot = 0
-    dealer = (dealer + 1) % 2
+    dealer = 1 - dealer
     players[dealer].is_dealer = True
-    players[1-dealer].is_dealer = False
+    players[1 - dealer].is_dealer = False
+    players[0].cards = []
+    players[1].cards = []
+
+    # is the game finished ?
+    if players[1-winner].stack == 0:
+        new_game = True
+    else:
+        new_game = False
+
+    episodes += 1
+
+    # @todo: train Q network here

@@ -15,6 +15,8 @@ Evaluate what hand is better
 from itertools import product
 from sklearn.utils import shuffle
 from collections import Counter
+import numpy as np
+
 
 BLINDS = (10, 20)
 
@@ -137,7 +139,7 @@ def blinds(players, verbose=False):
     SB = players[0] if not players[0].is_dealer else players[1]
     BB = players[0] if not players[1].is_dealer else players[1]
     if verbose:
-        print(SB.name + ' paid the small blind ')
+        print('\n'+ SB.name + ' paid the small blind ')
         print(BB.name + ' paid the big blind ')
     SB.stack -= BLINDS[0]
     BB.stack -= BLINDS[1]
@@ -192,6 +194,110 @@ def deal(deck, players, board, b_round, verbose=False):
         if verbose:
             print('river')
             print(board)
+
+
+def cards_to_array(cards):
+    """
+    Convert a list of cards (the board or the hand) into a numpy array to be passed as input of the DQN
+    :param cards: a list of Card objects
+    :return: an array representing these cards.
+             Note that if there are more than 2 cards (i.e if this is the board),
+             then the first 3 card are grouped together
+    """
+    if len(cards) == 2:
+        array = np.zeros((13, 4))
+        for card in cards:
+            value = Card.RANKS.index(card.rank)
+            suit = Card.SUITS.index(card.suit)
+            array[value, suit] = 1
+        return array
+    elif len(cards) == 1 or len(cards) > 5:
+        raise ValueError('there should be either 0, 2,3,4, or 5 cards')
+    elif len(cards) == 0:
+        return np.zeros((3, 13, 4))
+    elif len(cards) == 3:
+        array = np.zeros((3, 13, 4))
+        for card in cards:
+            value = Card.RANKS.index(card.rank)
+            suit = Card.SUITS.index(card.suit)
+            array[0, value, suit] = 1
+        return array
+    elif len(cards) == 4:
+        array = np.zeros((3, 13, 4))
+        for i, card in enumerate(cards):
+            value = Card.RANKS.index(card.rank)
+            suit = Card.SUITS.index(card.suit)
+            array[int(i >= 3), value, suit] = 1
+        return array
+    elif len(cards) == 5:
+        array = np.zeros((3, 13, 4))
+        for i, card in enumerate(cards):
+            value = Card.RANKS.index(card.rank)
+            suit = Card.SUITS.index(card.suit)
+            if i < 3:
+                idx = 0
+            elif i == 3:
+                idx = 1
+            elif i == 4:
+                idx = 2
+            array[idx, value, suit] = 1
+        return array
+
+
+def action_to_array(action):
+    """
+    Convert an action into a numpy array
+    Actions will be `check`, `bet`, `call`, `raise`, `all in`
+        `check` has to be included to be differentiated from not having played. If you just say that it is equivalent as
+        betting 0, then you don't know whether it played or not
+        `fold` should not be taken into account since it ends the game  @todo: sure of that ???
+    :param action: an Action object
+    :return: a numpy array
+    """
+    array = np.zeros((5,))
+    if action.type == 'check':
+        array[0] = 1
+    elif action.type == 'bet':
+        array[1] = action.value
+    elif action.type == 'call':
+        array[2] = action.value
+    elif action.type == 'raise':
+        array[3] = action.value
+    elif action.type == 'all in':
+        array[4] = action.value
+    return array
+
+
+def actions_to_array(actions):
+    """
+    Convert a sequence of actions into several numpy arrays
+    :param actions: a dict {b_round: {player: [actions]}}
+    :return: 4 arrays, one per betting round
+    """
+    all_plays = []
+    for b_round, players in actions.items():
+        b_round_plays = np.zeros((6, 5, 2))  # 6: max number of actions in one round. 5: total number of possible actions. 2: number of players. 0 is the agent and 1 its opponent
+        for player, actions in players.items():
+            for k, action in enumerate(actions):
+                b_round_plays[k, :, player] = action_to_array(action)
+        all_plays.append(b_round_plays)
+    return all_plays
+
+
+def split_pot(actions, dealer, blinds=BLINDS):
+    """
+    Split the pot
+    :param actions: a dict {b_round: {player: [actions]}}
+    :return: pot_0, pot_1
+    """
+    pot = {0: 0, 1: 0}
+    pot[0] += blinds[1-dealer]
+    pot[1] += blinds[dealer]
+    for b_round, players in actions.items():
+        for player, actions in players.items():
+            for action in actions:
+                pot[player] += action.value
+    return pot[0], pot[1]
 
 
 names = {1: 'deuce',
