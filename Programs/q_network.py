@@ -3,10 +3,13 @@ from keras.models import Model
 from models import Conv1D, Dense
 import keras.backend as K
 
+
 def Q(hidden_dim=10, activation='prelu', n_actions=20):
     hand = Input((13,4))  # zero everywhere and 1 for your cards
     board = Input((3,13,4))  # 3 rounds of board: flop [0,:,:], turn [1,:,:] and river [2,:,:]
     pot = Input((1,))
+    stack = Input((1, ))  # @todo: include this in the neural network
+    opponent_stack = Input((1, ))  # @todo: include this in the neural network
     blinds = Input((2,))  # small, big blinds
     dealer = Input((1,))  # 1 if you are the dealer, 0 otherwise
     opponent_model = Input((2,))  # tendency to raise, number of hands played: 2 numbers between 0 and 1
