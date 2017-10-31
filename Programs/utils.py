@@ -65,7 +65,7 @@ class Player:
     def cash(self, v):
         self.stack = v
 
-    def play(self, board, pot, actions, b_round, opponent_stack):
+    def play(self, board, pot, actions, b_round, opponent_stack, blinds=BLINDS):
         # if you are all in you cannot do anything
         if self.is_all_in:
             if self.verbose:
@@ -76,8 +76,9 @@ class Player:
                 if self.verbose:
                     print(self.name + ' did nothing (all in)')
                 return Action('null')
-        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, verbose=self.verbose)
-        self.stack -= action.value
+
+        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, blinds=blinds, verbose=self.verbose)
+        self.stack -= action.value - (b_round == 0)*blinds[self.is_dealer]  # take into account the blinds
         return action
 
     def __repr__(self):
@@ -94,6 +95,26 @@ class Player:
 
 class Action:
     """The possible types of actions"""
+
+    BET_BUCKETS = {
+        -1: (None, None),  # this is fold
+        0: (0, 0),  # this is check
+        1: (1, 1),
+        2: (2, 2),
+        3: (3, 4),
+        4: (5, 6),
+        5: (7, 10),
+        6: (10, 15),
+        7: (16, 20),
+        8: (21, 25),
+        9: (26, 30),
+        10: (31, 40),
+        11: (41, 60),
+        12: (61, 80),
+        13: (81, 100),
+        14: (101, 200)  # this is all-in
+    }
+
     def __init__(self, type, value=0):
         assert type in {'call', 'all in', 'fold', 'raise', 'bet', 'null'}
         self.type = type
@@ -136,8 +157,8 @@ def blinds(players, verbose=False):
     :param verbose: whether to print stuff
     :return: the pot
     """
-    SB = players[0] if not players[0].is_dealer else players[1]
-    BB = players[0] if not players[1].is_dealer else players[1]
+    SB = players[0] if players[0].is_dealer else players[1]
+    BB = players[1 - SB.id]
     if verbose:
         print('\n'+ SB.name + ' paid the small blind ')
         print(BB.name + ' paid the big blind ')
@@ -298,6 +319,19 @@ def split_pot(actions, dealer, blinds=BLINDS):
             for action in actions:
                 pot[player] += action.value
     return pot[0], pot[1]
+
+
+# @todo: write this
+# @todo: faire matcher les buckets avec les actions
+def authorized_actions(player, actions, b_round):
+    """
+    Determine the actions that player is entitled to take
+    :param player:
+    :param actions:
+    :param b_round:
+    :return:
+    """
+    pass
 
 
 names = {1: 'deuce',

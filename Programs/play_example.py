@@ -48,6 +48,8 @@ while True:
     # dramatic events monitoring
     fold_occured = False
     all_in = 0  # 0, 1 or 2. If 2, the one of the player is all-in and the other is either all-in or called. In that case, things should be treated differently
+    if players[0].stack == 0 or players[1].stack == 0:  # in this case the blind puts it all-in
+        all_in = 2
 
     # betting rounds
     for b_round in range(4):
@@ -65,7 +67,9 @@ while True:
 
             while not agreed:
                 player = players[to_play]
-                action = player.play(board, pot, actions, b_round, players[1 - to_play].stack)
+                action = player.play(board, pot, actions, b_round, players[1 - to_play].stack, BLINDS)
+                if action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
+                    assert action.value > 0
 
                 ##### RL #####
                 # Store transitions in memory. Just for the current player
@@ -84,7 +88,7 @@ while True:
                 actions[b_round][player.id].append(action)
                 if action.type == 'all in':
                     all_in += 1
-                if (action.type == 'call' or action.type == 'bet') and (all_in == 1):
+                elif (action.type == 'call' or action.type == 'bet') and (all_in == 1):
                     all_in += 1
 
                 # break if fold
@@ -106,10 +110,10 @@ while True:
             # deal all remaining cards
             for j in range(b_round, 4):
                 deal(deck, players, board, j, verbose=verbose)
-            agreed = True
+
+            # keep track of new state
             state_ = [cards_to_array(players[0].cards), cards_to_array(board), pot, players[0].stack, players[1].stack,
                       np.array(BLINDS), dealer, actions_to_array(actions)]
-            # keep track of new state
             MEMORY[-1]["s'"] = state_
 
             # end the episode
@@ -134,7 +138,18 @@ while True:
                 print(players[1].name + ' cards : ' + str(players[1].cards) + ' and score: ' + str(hand_1[0]))
                 print('Pot split')
     if not split:
-        players[winner].stack += pot
+        # if the winner isn't all in, it takes everything
+        if players[winner].stack > 0:
+            players[winner].stack += pot
+        # if the winner is all in, it takes only min(what it put in the pot*2, pot)
+        else:
+            s_pot = split_pot(actions, dealer)
+            if s_pot[winner]*2 > pot:
+                players[winner].stack += pot
+            else:
+                players[winner].stack += 2*s_pot[winner]
+                players[1 - winner].stack += pot - 2*s_pot[winner]
+
         ##### RL #####
         # If the agent won, gives it the chips
         if winner == 0:
