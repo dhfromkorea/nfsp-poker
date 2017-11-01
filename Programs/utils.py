@@ -116,7 +116,7 @@ class Action:
     }
 
     def __init__(self, type, value=0):
-        assert type in {'call', 'all in', 'fold', 'raise', 'bet', 'null'}
+        assert type in {'call', 'check', 'all in', 'fold', 'raise', 'bet', 'null'}
         self.type = type
         self.value = value
 
