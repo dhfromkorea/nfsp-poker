@@ -5,11 +5,11 @@ import keras.backend as K
 
 
 def Q(hidden_dim=10, activation='prelu', n_actions=20):
-    hand = Input((13,4))  # zero everywhere and 1 for your cards
-    board = Input((3,13,4))  # 3 rounds of board: flop [0,:,:], turn [1,:,:] and river [2,:,:]
+    hand = Input((13, 4))  # zero everywhere and 1 for your cards
+    board = Input((3, 13, 4))  # 3 rounds of board: flop [0,:,:], turn [1,:,:] and river [2,:,:]
     pot = Input((1,))
-    stack = Input((1, ))  # @todo: include this in the neural network
-    opponent_stack = Input((1, ))  # @todo: include this in the neural network
+    stack = Input((1,))  # @todo: include this in the neural network
+    opponent_stack = Input((1,))  # @todo: include this in the neural network
     blinds = Input((2,))  # small, big blinds
     dealer = Input((1,))  # 1 if you are the dealer, 0 otherwise
     opponent_model = Input((2,))  # tendency to raise, number of hands played: 2 numbers between 0 and 1
@@ -19,7 +19,8 @@ def Q(hidden_dim=10, activation='prelu', n_actions=20):
     river_plays = Input((6, 4, 2))
     # value_of_hand = Input((2,))  # combination_type, rank_in_this_type
 
-    # note: these may need to be wrapped by Lambda layer
+    # PROCESSING OF CARDS (HAND+BOARD)
+    # @todo : check that it makes sense. Create a Keras.layer Sum(axis)
     color_hand = Lambda(lambda x: K.sum(x, 1))(hand)
     color_board = Lambda(lambda x: K.sum(x, (1, 2)))(board)
     kinds_hand = Lambda(lambda x: K.sum(x, 2))(hand)
@@ -57,7 +58,9 @@ def Q(hidden_dim=10, activation='prelu', n_actions=20):
     situation_without_opponent = Dense(hidden_dim, activation=activation, BN=True)(situation_without_opponent)
     situation_without_opponent = Dense(hidden_dim, activation=activation, BN=True)(situation_without_opponent)
 
-    # maybe this should only be a function of the cards
+    # Auxiliary inputs
+    # @todo: maybe it should be only a function of the cards themselves.
+    # @todo: outputs: probabilities of having each combination at the end of the game + probabilities that the flop gives rise to these combinations + rank of current hand
     value_of_hand = Dense(hidden_dim, activation='sigmoid', BN=True)(situation_without_opponent)
 
     processed_preflop = Dense(hidden_dim, activation=activation, BN=True)(Flatten()(preflop_plays))
@@ -66,11 +69,11 @@ def Q(hidden_dim=10, activation='prelu', n_actions=20):
     processed_river = Dense(hidden_dim, activation=activation, BN=True)(Flatten()(river_plays))
     processed_opponent = Dense(hidden_dim, activation=activation, BN=True)(opponent_model)
     plays = Dense(hidden_dim, activation=activation, BN=True)(Add()([processed_preflop,
-                                                                  processed_flop,
-                                                                  processed_turn,
-                                                                  processed_river,
-                                                                  processed_opponent
-                                                                  ]))
+                                                                     processed_flop,
+                                                                     processed_turn,
+                                                                     processed_river,
+                                                                     processed_opponent
+                                                                     ]))
     plays = Dense(hidden_dim, activation=activation, BN=True)(plays)
 
     # combine information from board and information from opponent
@@ -81,4 +84,4 @@ def Q(hidden_dim=10, activation='prelu', n_actions=20):
     # obtain the Q values
     Q_values = Dense(n_actions, activation=None, BN=True)(situation_with_opponent)
     return Model([hand, board, pot, blinds, dealer, opponent_model, preflop_plays, flop_plays, turn_plays, river_plays],
-              [value_of_hand, Q_values])
+                 [value_of_hand, Q_values])

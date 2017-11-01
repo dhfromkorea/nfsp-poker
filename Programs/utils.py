@@ -136,6 +136,15 @@ def agreement(actions, betting_round):
     # 1 fold
     if actions[betting_round][0][-1].type == 'fold' or actions[betting_round][1][-1].type == 'fold':
         return True
+    # 1 check 1 call
+    if (actions[betting_round][0][-1].type == 'check' and actions[betting_round][1][-1].type == 'call') or (actions[betting_round][0][-1].type == 'call' and actions[betting_round][1][-1].type == 'check'):
+        return True
+    # 1 check 1 bet
+    if (actions[betting_round][0][-1].type == 'check' and actions[betting_round][1][-1].type == 'bet') or (actions[betting_round][0][-1].type == 'bet' and actions[betting_round][1][-1].type == 'check'):
+        return True
+    # 2 checks
+    if actions[betting_round][0][-1].type == 'check' and actions[betting_round][1][-1].type == 'check':
+        return True
     # 1 bet 1 call
     if (actions[betting_round][0][-1].type == 'bet' and actions[betting_round][1][-1].type == 'call') or (
             actions[betting_round][0][-1].type == 'call' and actions[betting_round][1][-1].type == 'bet'):
@@ -298,8 +307,8 @@ def actions_to_array(actions):
     all_plays = []
     for b_round, players in actions.items():
         b_round_plays = np.zeros((6, 5, 2))  # 6: max number of actions in one round. 5: total number of possible actions. 2: number of players. 0 is the agent and 1 its opponent
-        for player, actions in players.items():
-            for k, action in enumerate(actions):
+        for player, plays in players.items():
+            for k, action in enumerate(plays):
                 b_round_plays[k, :, player] = action_to_array(action)
         all_plays.append(b_round_plays)
     return all_plays
