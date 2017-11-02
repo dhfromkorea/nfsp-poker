@@ -1,17 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Oct 14 22:46:26 2017
-
-@author: SrivatsanPC
-"""
-
 from collections import Counter
-from operator import attrgetter
-import pokerconst as pc
 
 
 def cn(value):
-    return pc.names[value]
+    return names[value]
 
 
 def is_straight(values, length):
@@ -22,7 +13,7 @@ def is_straight(values, length):
     for low in (10, 9, 8, 7, 6, 5, 4, 3, 2, 1):
         needed = set(range(low, low + length))
         if len(needed - hand) <= 0:
-            return (low+length)-1  
+            return (low+length)-1
     return 0
 
 
@@ -147,3 +138,22 @@ def evaluate_hand(cards):
     raw_data = (raw_values, flush_score, straight, gappers)
 
     return rep, hand_value, tie_break, raw_data
+
+
+names = {1: 'deuce',
+         2: 'three',
+         3: 'four',
+         4: 'five',
+         5: 'six',
+         6: 'seven',
+         7: 'eight',
+         8: 'nine',
+         9: 'ten',
+         10: 'jack',
+         11: 'queen',
+         12: 'king',
+         13: 'ace'}
+
+
+def compare_hands(players):
+    return int(evaluate_hand(players[1].cards) > evaluate_hand(players[0].cards))

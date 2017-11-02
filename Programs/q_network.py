@@ -12,11 +12,11 @@ def Q(hidden_dim=10, activation='prelu', n_actions=20):
     opponent_stack = Input((1,))  # @todo: include this in the neural network
     blinds = Input((2,))  # small, big blinds
     dealer = Input((1,))  # 1 if you are the dealer, 0 otherwise
-    opponent_model = Input((2,))  # tendency to raise, number of hands played: 2 numbers between 0 and 1
-    preflop_plays = Input((6, 4, 2))  # 6 plays max (check then 5 times raises), 4 possible actions (check,bet,call,raise), 2 players
-    flop_plays = Input((6, 4, 2))
-    turn_plays = Input((6, 4, 2))
-    river_plays = Input((6, 4, 2))
+    opponent_model = Input((2,))  # tendency to raise, number of hands played: 2 numbers between 0 and 1  # @todo: include this
+    preflop_plays = Input((6, 5, 2))  # 6 plays max (check then 5 times raises), 5 possible actions (check,bet,call,raise,allin), 2 players
+    flop_plays = Input((6, 5, 2))
+    turn_plays = Input((6, 5, 2))
+    river_plays = Input((6, 5, 2))
     # value_of_hand = Input((2,))  # combination_type, rank_in_this_type
 
     # PROCESSING OF CARDS (HAND+BOARD)

@@ -1,14 +1,18 @@
-from utils import *
-from strategies import strategy_limper
 from time import time
+from evaluation import *
+from state_abstraction import *
+from strategies import strategy_limper
+from game_utils import *
+import numpy as np
 
 
 verbose = True
 
 # instantiate game
 deck = Deck()
-players = [Player(0, strategy_limper, 1000, verbose=True, name='SB'),
-           Player(1, strategy_limper, 1000, verbose=True, name='DH')]
+INITIAL_MONEY = 100*BLINDS[0]
+players = [Player(0, strategy_limper, INITIAL_MONEY, verbose=True, name='SB'),
+           Player(1, strategy_limper, INITIAL_MONEY, verbose=True, name='DH')]
 board = []
 dealer = set_dealer(players)
 MEMORY = []  # a list of dicts with keys s,a,r,s'
@@ -31,8 +35,8 @@ while True:
                   'Memory contains %s transitions\n'
                   '####################' % (str(games), time() - t0, str(len(MEMORY))))
             t0 = time()
-        players[0].cash(1000)
-        players[1].cash(1000)
+        players[0].cash(INITIAL_MONEY)
+        players[1].cash(INITIAL_MONEY)
 
     # put blinds
     pot = blinds(players, verbose=verbose)
@@ -57,7 +61,7 @@ while True:
         if all_in != 2:
             # deal cards
             deal(deck, players, board, b_round, verbose=verbose)
-            agreed = False
+            agreed = False  # True when the max bet has been called by everybody
 
             # play
             if b_round != 0:
@@ -67,9 +71,13 @@ while True:
 
             while not agreed:
                 player = players[to_play]
-                action = player.play(board, pot, actions, b_round, players[1 - to_play].stack, BLINDS)
+                action = player.play(board, pot, actions, b_round, players[1 - to_play].stack, players[1 - to_play].side_pot, BLINDS)
                 if action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
-                    assert action.value > 0
+                    try:
+                        assert action.value > 0
+                    except AssertionError:
+                        actions
+                        raise AssertionError
 
                 ##### RL #####
                 # Store transitions in memory. Just for the current player
@@ -80,12 +88,19 @@ while True:
                     reward_ = -action.value
                     transition = {'s': state_, 'a': action_, 'r': reward_}
                     if len(MEMORY) > 0 and not new_game:  # don't take into account transitions overlapping two different games
+                        # don't forget to store next state
                         MEMORY[-1]["s'"] = state_
                     MEMORY.append(transition)
                 ##############
 
                 pot += action.value
+                try:
+                    assert pot + players[0].stack + players[1].stack == 2*INITIAL_MONEY
+                except AssertionError:
+                    actions
+                    raise AssertionError
                 actions[b_round][player.id].append(action)
+
                 if action.type == 'all in':
                     all_in += 1
                 elif (action.type == 'call' or action.type == 'bet') and (all_in == 1):
@@ -99,7 +114,7 @@ while True:
                         print(players[winner].name + ' wins because its opponent folded')
                     break
 
-                # decide if it is the end of the betting round
+                # decide whether it is the end of the betting round or not
                 agreed = agreement(actions, b_round)
                 to_play = 1 - to_play
 
@@ -119,15 +134,34 @@ while True:
             # end the episode
             break
 
+        players[0].side_pot = 0
+        players[1].side_pot = 0
+
     # winner gets money and variables are updated
     split = False
     if not fold_occured:
         hand_1 = evaluate_hand(players[1].cards+board)
         hand_0 = evaluate_hand(players[0].cards+board)
+
+        # possible split
         if hand_1[1] == hand_0[1]:
-            split = True
+            if hand_1[2] == hand_0[2]:
+                split = True
+            else:
+                for card_0, card_1 in zip(hand_0[2], hand_1[2]):
+                    if card_0 < card_1:
+                        winner = 1
+                        break
+                    elif card_0 == card_1:
+                        continue
+                    else:
+                        winner = 0
+                        break
+
+        # no split
         else:
             winner = int(hand_1[1] > hand_0[1])
+
         if verbose:
             if not split:
                 print(players[0].name + ' cards : ' + str(players[0].cards) + ' and score: ' + str(hand_0[0]))
@@ -171,7 +205,7 @@ while True:
     players[1].cards = []
 
     # is the game finished ?
-    if players[1-winner].stack == 0:
+    if players[0].stack == 0 or players[1].stack == 0:
         new_game = True
     else:
         new_game = False
