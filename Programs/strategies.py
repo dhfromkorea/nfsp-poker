@@ -38,13 +38,13 @@ def strategy_limper(player, board, pot, actions, b_round, opponent_stack, oppone
                 if verbose:
                     if player_name is None:
                         player_name = str(id)
-                    print(player_name + ' bet ' + str(BLINDS[1]))
+                    print(player_name + ' (' + str(player.stack) + ') ' + 'bet ' + str(BLINDS[1]))
                 return Action('bet', BLINDS[1])
             else:
                 if verbose:
                     if player_name is None:
                         player_name = str(id)
-                    print(player_name + ' is all in (' + str(player.stack)+')')
+                    print(player_name + ' (' + str(player.stack) + ') '+ ' is all in (' + str(player.stack)+')')
                 return Action('all in', player.stack)
         else:  # otherwise, check or call
             if actions[b_round][opponent][-1].type == 'check':
@@ -81,7 +81,7 @@ def strategy_limper(player, board, pot, actions, b_round, opponent_stack, oppone
                 if verbose:
                     if player_name is None:
                         player_name = str(id)
-                    print(player_name + ' called (' + str(BLINDS[0]) + ')')
+                    print(player_name + ' (' + str(player.stack) + ') ' + ' called (' + str(BLINDS[0]) + ')')
                 return Action('call', BLINDS[0])
 
             # otherwise, go all in
@@ -89,7 +89,7 @@ def strategy_limper(player, board, pot, actions, b_round, opponent_stack, oppone
                 if verbose:
                     if player_name is None:
                         player_name = str(id)
-                    print(player_name + ' is all in (' + str(player.stack)+')')
+                    print(player_name + ' (' + str(player.stack) + ') ' + ' is all in (' + str(player.stack)+')')
                 return Action('all in', player.stack)
 
             # you may already be all-in. In this case, that should be treated before, showdown
@@ -125,7 +125,6 @@ def strategy_limper(player, board, pot, actions, b_round, opponent_stack, oppone
                     return Action('fold')
 
 
-
 def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q, greedy=True, blinds=BLINDS, verbose=False):
     # @todo: add a param eps for eps-greedy policies ?
     """
@@ -157,7 +156,7 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
         probabilities = softmax(Q_values)
         action = bucket_to_action(sample_action(idx, probabilities), actions, b_round, player, opponent_side_pot, blinds=blinds)
     if verbose:
-        print(player.name + ' ' + action.type + '(' + str(action.value) + ')')
+        print(player.name + ' (' + str(player.stack) + ') ' + action.type + '(' + str(action.value) + ')')
     return action
 
 

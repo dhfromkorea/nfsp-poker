@@ -85,6 +85,18 @@ def Dense(n_units, activation=None, BN=False, channel=1, training=None, config=B
     return f
 
 
+def Sum(axis):
+    def f(x):
+        return Lambda(lambda x_: K.sum(x_, axis))(x)
+    return f
+
+
+def IsNonZero():
+    def f(x):
+        return Lambda(lambda x_: K.cast(x_ > 0, np.float32))(x)
+    return f
+
+
 # BatchNorm
 def BatchNorm(momentum=0.99, training=True):
     def batchnorm(x, momentum=momentum, training=training):

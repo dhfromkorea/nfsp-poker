@@ -83,11 +83,9 @@ class Player:
         try:
             if self.stack - action.value < 0:
                 raise AttributeError
-            self.stack -= action.value  # - (b_round == 0)*blinds[self.is_dealer]  # take into account the blinds
         except AttributeError:
             action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=blinds, verbose=self.verbose)
             raise AttributeError
-        self.side_pot += action.value
         return action
 
     def __repr__(self):
@@ -166,8 +164,8 @@ def blinds(players, verbose=False):
         BB.stack = 0
 
     if verbose:
-        print('\n'+ SB.name + ' paid the small blind ')
-        print(BB.name + ' paid the big blind ')
+        print('\n'+ SB.name + ' (' + str(SB.stack) + ') '+ ' paid the small blind ')
+        print(BB.name + ' (' + str(BB.stack) + ') '+ ' paid the big blind ')
     return sb_paid + bb_paid
 
 
@@ -228,9 +226,11 @@ def split_pot(actions, dealer, blinds=BLINDS):
     :return: pot_0, pot_1
     """
     pot = {0: 0, 1: 0}
-    pot[0] += blinds[1-dealer]
-    pot[1] += blinds[dealer]
+    pot[0] += actions[-1][0]
+    pot[1] += actions[-1][1]
     for b_round, players in actions.items():
+        if b_round == -1:
+            continue
         for player, actions in players.items():
             for action in actions:
                 pot[player] += action.value
@@ -238,24 +238,9 @@ def split_pot(actions, dealer, blinds=BLINDS):
 
 
 if __name__ == '__main__':
-    board = [Card('6', 's'), Card('A', 'h'), Card('7', 'd'), Card('A', 's'), Card('4', 's')]
-    SB_cards = [Card('J', 's'), Card('10', 'd')]
-    DH_cards = [Card('K', 'd'), Card('J','c')]
-    from evaluation import evaluate_hand
-
-    hand_0 = evaluate_hand(SB_cards + board)
-    hand_1 = evaluate_hand(DH_cards + board)
-    if hand_1[1] == hand_0[1]:
-        if hand_1[2] == hand_0[2]:
-            split = True
-        else:
-            for card_0, card_1 in zip(hand_0[2], hand_1[2]):
-                if card_0 < card_1:
-                    winner = 1
-                    break
-                elif card_0 == card_1:
-                    continue
-                else:
-                    winner = 0
-                    break
-
+    from strategies import strategy_limper
+    INITIAL_MONEY = 100
+    players = [Player(0, strategy_limper, 1, verbose=True, name='SB'),
+               Player(1, strategy_limper, INITIAL_MONEY, verbose=True, name='DH')]
+    players[1].is_dealer = True
+    print(blinds(players))

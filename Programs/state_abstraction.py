@@ -83,6 +83,8 @@ def actions_to_array(actions):
     """
     all_plays = []
     for b_round, players in actions.items():
+        if b_round == -1:
+            continue
         b_round_plays = np.zeros((6, 5, 2))  # 6: max number of actions in one round. 5: total number of possible actions. 2: number of players. 0 is the agent and 1 its opponent
         for player, plays in players.items():
             for k, action in enumerate(plays):
