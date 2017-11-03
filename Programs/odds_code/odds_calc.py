@@ -50,11 +50,12 @@ def gen_odds():
         for combo in combos:            
             out = hc.run((tuple(combo),),int(1e6),False,None,None,False)
             final_out = {**final_out, **out}
+            i+=1
             #import pdb;pdb.set_trace()
-        if i % (len(combos)//25) == 0:
+        if i % (len(combos)//25) == 0 and i > 0:
             print("Req: " + str(r) + "- " + str(i) + " Iterations Over")
         
-        pickle.dump(final_out, open("hand_eval_" + r +".p", 'wb'))
+        pickle.dump(final_out, open("hand_eval_" + str(r) +".p", 'wb'))
         print("Set of ", r, " cards over and pickled")       
             
             

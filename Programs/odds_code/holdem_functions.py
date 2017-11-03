@@ -269,15 +269,15 @@ def print_results(hole_cards, winner_list, result_histograms):
             print(hand_rankings[index], ": ", float(elem) / float_iterations)
         print("\n")
 
-def return_results(hole_cards, winner_list, result_histograms):
+def return_results(hole_cards, winner_list, result_histograms,pad_opp=True):
     float_iterations = float(sum(winner_list))
     results = {}
     for index, hole_card in enumerate(hole_cards):
         results["player"+ str(index+1) + "winprob"] = float(winner_list[index + 1]) / float_iterations
     cards = []
     for card in hole_cards[0]:
-#        import pdb
-#        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
         cards.append(card.__str__())       
     
     for player_index, histogram in enumerate(result_histograms):
