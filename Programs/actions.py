@@ -32,6 +32,9 @@ class Action:
     def __repr__(self):
         return self.type + ' ' + str(self.value)
 
+    def __eq__(self, other):
+        return (self.type == other.type) and (self.value == other.value) and (self.min_raise == other.min_raise)
+
 
 def idx_to_bucket(idx):
     """Mapping between the indexes of the Q values (numpy array) and the idx of the actions in Action.BET_BUCKET"""
@@ -74,13 +77,22 @@ def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
                 # this is a raise
                 # it can be a min-raise
                 raise_value = get_raise_from_bucket(bucket, actions, b_round, player, opponent_side_pot)
-                if raise_value == actions[b_round][1-player.id][-1].value:
-                    return Action('raise', value=raise_value, min_raise=True)
-                else:
-                    return Action('raise', value=raise_value, min_raise=False)
+                try:
+                    if raise_value == actions[b_round][1-player.id][-1].value:
+                        return Action('raise', value=raise_value, min_raise=True)
+                    else:
+                        return Action('raise', value=raise_value, min_raise=False)
+                except IndexError:  # in this case, you are small blind and raise the BB
+                    assert b_round == 0
+                    assert player.is_dealer
+                    assert len(actions[0][1-player.id]) == 0
+                    if raise_value == 2:
+                        return Action('raise', value=raise_value, min_raise=True)
+                    else:
+                        return Action('raise', value=raise_value, min_raise=False)
 
 
-def get_raise_from_bucket(bucket, actions, b_round, player, opponent_side_pot):
+def get_raise_from_bucket(bucket, actions, b_round, player, opponent_side_pot, raise_val=0):
     """
     Note that the raise is what you BET ABOVE THE BET OF THE OPPONENT
     :param bucket:
@@ -90,11 +102,24 @@ def get_raise_from_bucket(bucket, actions, b_round, player, opponent_side_pot):
     :param opponent_side_pot:
     :return:
     """
-    min_range, max_range = Action.BET_BUCKETS[bucket]
-    if min_range <= opponent_side_pot + actions[b_round][1 - player.id][-1].value <= max_range:
-        return actions[b_round][1 - player.id][-1].value
+    min_range_of_your_bucket, max_range_of_your_bucket = Action.BET_BUCKETS[bucket]
+
+    # note that `min_raise` refers to the minimum amount of money you have in your side pot if you min-raise your opponent
+    min_raise_bucket, min_raise = get_min_raise_bucket(opponent_side_pot, actions, b_round, player, raise_val=raise_val, return_min_raise=True)
+    if max_range_of_your_bucket < min_raise:
+        raise ValueError('This is not a raise')
+    if min_range_of_your_bucket > min_raise:
+        try:
+            assert min_range_of_your_bucket - opponent_side_pot > actions[b_round][1-player.id][-1].value
+        except IndexError:
+            assert min_range_of_your_bucket - opponent_side_pot > 1
+        return min_range_of_your_bucket - opponent_side_pot
     else:
-        return min_range - opponent_side_pot
+        try:
+            assert min_raise > actions[b_round][1 - player.id][-1].value
+        except IndexError:
+            assert min_raise > 1
+        return min_raise - opponent_side_pot
 
 
 def sample_action(idx, probabilities):
@@ -107,7 +132,9 @@ def sample_action(idx, probabilities):
 def get_call_bucket(bet):
     """Returns the bucket that contains `bet`"""
     for bucket, range in Action.BET_BUCKETS.items():
-        if range[0] <= bet <= range[1] < 100:
+        if bucket == -1:
+            continue
+        if range[0] <= bet <= range[1] <= 100:
             return bucket
     return 14
 
@@ -116,26 +143,43 @@ def get_max_bet_bucket(stack):
     """Returns the biggest bucket you can use to make a bet. Note that it is below the one that leads you to all-in"""
     assert 0 < stack <= 200
     for bucket, range in Action.BET_BUCKETS.items():
+        if bucket == -1:
+            continue
         if range[0] <= stack <= range[1]:
             return bucket
+    return 13
 
 
-def get_min_raise_bucket(opponent_side_pot, actions, b_round, player, raise_val=0):
+def get_min_raise_bucket(opponent_side_pot, actions, b_round, player, raise_val=0, return_min_raise=False):
     """
     Gives you the bucket that contains the min raise you can do
     Note that, to decrease the dimensionality of the inputs, only 2 min-raises are allowed. That way, the total number of actions
     per betting round is kept small (6 max, corresponding to check/bet/2 min raises/and x2 raises at least by the RL agent)
     """
     actions_you_took = actions[b_round][player.id]
-    n_min_raise = sum([a for a in actions_you_took if a.type == 'raise'])
+    n_min_raise = sum([a.min_raise for a in actions_you_took if a.type == 'raise'])
     if n_min_raise >= 2:
         # now you no longer have right to min raise
-        min_raise = 2*(opponent_side_pot+raise_val)
-        return get_call_bucket(min_raise)
+        min_raise = 2*opponent_side_pot
+        if not return_min_raise:
+            return get_call_bucket(min_raise)
+        else:
+            return get_call_bucket(min_raise), min_raise
     else:
         # you have right to min-raise
-        min_raise = raise_val*2 + opponent_side_pot
-        return get_call_bucket(min_raise)
+        # if you are small blind, your first raise is at least 4
+        if player.is_dealer and b_round == 0 and len(actions[0][1-player.id]) == 0:
+            if not return_min_raise:
+                return 3
+            else:
+                return 3, 4  # bucket 3, 4 in total
+
+        min_raise = raise_val + opponent_side_pot
+        print(min_raise)
+        if not return_min_raise:
+            return get_call_bucket(min_raise)
+        else:
+            return get_call_bucket(min_raise), min_raise
 
 
 def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
@@ -166,27 +210,39 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
 
         # what if it called?
         elif last_action_taken_by_opponent.type == 'call':
-            raise ValueError('This case shouldn\'t happen because a call should lead to the next betting round')
+            if b_round > 0:
+                raise ValueError('This case shouldn\'t happen because a call should lead to the next betting round')
+            # for preflop you can raise the call of the small blind
+            else:
+                assert not player.is_dealer
+                assert len(actions[0][0]) == 0
+                check_bucket = 0
+                return [check_bucket] + list(range(3, 15))
 
         # what if it bet ?
         elif last_action_taken_by_opponent.type == 'bet':
             call_bucket = get_call_bucket(last_action_taken_by_opponent.value)
             assert opponent_side_pot == last_action_taken_by_opponent.value
-            min_raise_bucket = get_min_raise_bucket(last_action_taken_by_opponent.value, actions, b_round, player)
+            min_raise_bucket = get_min_raise_bucket(last_action_taken_by_opponent.value, actions, b_round, player, raise_val=last_action_taken_by_opponent.value)
             max_raise_bucket = get_max_bet_bucket(player.stack)
+            print(min_raise_bucket, call_bucket, opponent_side_pot, max_raise_bucket)
             assert min_raise_bucket > call_bucket, 'buckets are not well calibrated: a bet and a raise can be in the same bucket'
-            if max_raise_bucket < call_bucket:
+            if max_raise_bucket <= call_bucket:
                 # in this case, all your money is below the bet of the opponent, so you can only fold or go all-in
                 return [-1, 14]
             else:
-                return [-1] + [call_bucket] + list(range(min_raise_bucket, max_raise_bucket+1)) + [14]
+                if opponent_side_pot < player.side_pot + player.stack:
+                    return [-1] + [call_bucket] + list(range(min_raise_bucket, max_raise_bucket+1)) + [14]
+                else:  # in this case your call is actually a all-in
+                    return [-1] + list(range(min_raise_bucket, max_raise_bucket+1)) + [14]
 
         # what if it raised ?
         elif last_action_taken_by_opponent.type == 'raise':
             # you have right to do at most 2 min-raises (simplification), and then you have to double at least
-            call_bucket = get_call_bucket(last_action_taken_by_opponent.value + opponent_side_pot)
+            call_bucket = get_call_bucket(opponent_side_pot)
             min_raise_bucket = get_min_raise_bucket(opponent_side_pot, actions, b_round, player, raise_val=last_action_taken_by_opponent.value)
             max_raise_bucket = get_max_bet_bucket(player.stack)
+            print(min_raise_bucket, call_bucket, opponent_side_pot)
             assert min_raise_bucket > call_bucket, 'buckets are not well calibrated: a bet and a raise can be in the same bucket'
             if max_raise_bucket < call_bucket:
                 return [-1, 14]
@@ -205,4 +261,7 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
     # in this case, you're first to play and can do basically whatever you want except folding and betting less than the big blind
     except IndexError:
         max_bet_bucket = get_max_bet_bucket(player.stack)
-        return [0] + list(range(2, max_bet_bucket+1)) + [14]
+        if opponent_side_pot == player.side_pot == 0:
+            return [0] + list(range(2, max_bet_bucket+1)) + [14]
+        else:
+            return [-1] + list(range(2, max_bet_bucket+1)) + [14]

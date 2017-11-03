@@ -4,6 +4,7 @@ from state_abstraction import *
 from strategies import strategy_limper
 from game_utils import *
 import numpy as np
+from utils import *
 
 
 verbose = True
@@ -40,14 +41,18 @@ while True:
 
     # put blinds
     pot = blinds(players, verbose=verbose)
+    if verbose:
+        print('pot: ' + str(pot))
 
     # shuffle decks are clear board
     deck.populate()
     deck.shuffle()
     board = []
 
-    # keep track of actions of each player for this episode
-    actions = {b_round: {player: [] for player in range(2)} for b_round in range(4)}
+    # keep track of actions of each player for this episode. Also keep track of the blinds they paid (if you are big blind but have only a small blind, we need to know that you paid only 1 (to compute potential split pot))
+    actions = {b_round: {player: [] for player in range(2)} for b_round in range(-1, 4)}
+    actions[-1][players[0].id] = players[0].side_pot
+    actions[-1][players[1].id] = players[1].side_pot
 
     # dramatic events monitoring
     fold_occured = False
@@ -79,36 +84,31 @@ while True:
                         actions
                         raise AssertionError
 
-                ##### RL #####
-                # Store transitions in memory. Just for the current player
+                # RL : Store transitions in memory. Just for the agent
                 if player.id == 0:
-                    state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
-                              np.array(BLINDS), dealer, actions_to_array(actions)]
-                    action_ = action_to_array(action)
-                    reward_ = -action.value
-                    transition = {'s': state_, 'a': action_, 'r': reward_}
-                    if len(MEMORY) > 0 and not new_game:  # don't take into account transitions overlapping two different games
-                        # don't forget to store next state
-                        MEMORY[-1]["s'"] = state_
-                    MEMORY.append(transition)
+                    update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions)
                 ##############
 
+                player.side_pot += action.value
+                player.stack -= action.value
                 pot += action.value
-                try:
-                    assert pot + players[0].stack + players[1].stack == 2*INITIAL_MONEY
-                except AssertionError:
-                    actions
-                    raise AssertionError
+                assert pot + players[0].stack + players[1].stack == 2*INITIAL_MONEY
                 actions[b_round][player.id].append(action)
 
                 if action.type == 'all in':
                     all_in += 1
-                elif (action.type == 'call' or action.type == 'bet') and (all_in == 1):
+                    if action.value <= players[1-to_play].side_pot:
+                        # in this case, the all in is a call and it leads to showdown
+                        all_in += 1
+                elif (action.type == 'call') and (all_in == 1):
+                    # in this case, you call a all-in and it goes to showdown
                     all_in += 1
 
                 # break if fold
                 if action.type == 'fold':
                     fold_occured = True
+                    players[0].side_pot = 0
+                    players[1].side_pot = 0
                     winner = 1 - to_play
                     if verbose:
                         print(players[winner].name + ' wins because its opponent folded')
@@ -118,6 +118,8 @@ while True:
                 agreed = agreement(actions, b_round)
                 to_play = 1 - to_play
 
+            players[0].side_pot = 0
+            players[1].side_pot = 0
             # potentially stop the episode
             if fold_occured:
                 break
@@ -132,10 +134,9 @@ while True:
             MEMORY[-1]["s'"] = state_
 
             # end the episode
+            players[0].side_pot = 0
+            players[1].side_pot = 0
             break
-
-        players[0].side_pot = 0
-        players[1].side_pot = 0
 
     # winner gets money and variables are updated
     split = False
@@ -175,6 +176,7 @@ while True:
         # if the winner isn't all in, it takes everything
         if players[winner].stack > 0:
             players[winner].stack += pot
+
         # if the winner is all in, it takes only min(what it put in the pot*2, pot)
         else:
             s_pot = split_pot(actions, dealer)
@@ -203,6 +205,7 @@ while True:
     players[1 - dealer].is_dealer = False
     players[0].cards = []
     players[1].cards = []
+    assert players[1].side_pot == players[0].side_pot == 0
 
     # is the game finished ?
     if players[0].stack == 0 or players[1].stack == 0:
