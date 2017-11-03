@@ -7,7 +7,7 @@ class Action:
     BET_BUCKETS = {
         -1: (None, None),  # this is fold
         0: (0, 0),  # this is check
-        1: (1, 1),
+        # 1: (1, 1),
         2: (2, 2),
         3: (3, 4),
         4: (5, 6),
@@ -38,7 +38,10 @@ class Action:
 
 def idx_to_bucket(idx):
     """Mapping between the indexes of the Q values (numpy array) and the idx of the actions in Action.BET_BUCKET"""
-    return idx - 1
+    if idx <= 1:
+        return idx - 1
+    else:
+        return idx
 
 
 def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
