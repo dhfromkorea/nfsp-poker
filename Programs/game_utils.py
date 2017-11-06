@@ -81,7 +81,11 @@ class Player:
         action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=blinds, verbose=self.verbose)
         if self.stack - action.value <= 0:
             self.is_all_in = True
+            if self.verbose:
+                print(self.name + ' goes all in (' + str(self.stack) + ')')
             return Action('all in', value=self.stack)
+        if self.verbose:
+            print(self.name + ' ' + action.type + ' (' + str(action.value) + ')')
         return action
 
     def __repr__(self):
@@ -184,6 +188,7 @@ def blinds(players, verbose=False):
 
 
 def set_dealer(players, verbose=False):
+    """Randomly set the dealer"""
     import random
     if random.random() > .5:
         if verbose:
@@ -231,24 +236,6 @@ def deal(deck, players, board, b_round, verbose=False):
         if verbose:
             print('river')
             print(board)
-
-
-def split_pot(actions, dealer, blinds=BLINDS):
-    """
-    Split the pot
-    :param actions: a dict {b_round: {player: [actions]}}
-    :return: pot_0, pot_1
-    """
-    pot = {0: 0, 1: 0}
-    pot[0] += actions[-1][0]
-    pot[1] += actions[-1][1]
-    for b_round, players in actions.items():
-        if b_round == -1:
-            continue
-        for player, actions in players.items():
-            for action in actions:
-                pot[player] += action.value
-    return pot[0], pot[1]
 
 
 def cards_to_array(cards):
@@ -510,9 +497,6 @@ def get_min_raise_bucket(opponent_side_pot, actions, b_round, player, raise_val=
 def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
     """
     Gives you the buckets you have right to choose
-    Note that the buckets returned correspond to the total side pot you have right to put on the table
-    For example, if the opponent bet 10 and that you can raise 10, the min-raise bucket will be the 7th (16, 20)
-    The actual raised value fixed in the `bucket_to_action` function
     :param player:
     :param actions:
     :param b_round:
