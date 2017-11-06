@@ -1,5 +1,4 @@
 import numpy as np
-
 from game_utils import Card
 
 
@@ -126,4 +125,5 @@ def build_state(player, board, pot, actions, b_round, opponent_stack, blinds):
     blinds_ = np.array(blinds)
     dealer = np.array([player.id if player.is_dealer else 1 - player.id])
     preflop_plays, flop_plays, turn_plays, river_plays = actions_to_array(actions)
-    return hand, board, pot_, stack_, opponent_stack_, blinds_, dealer, preflop_plays, flop_plays, turn_plays, river_plays
+    # hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays]
+    return [hand, board, pot_, stack_, opponent_stack_, blinds_, dealer, preflop_plays, flop_plays, turn_plays, river_plays]

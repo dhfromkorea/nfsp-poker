@@ -8,14 +8,9 @@ Define classes for :
 Setting the blinds, the dealer button, deal cards
 
 Evaluate what hand is better
-
-
 """
-
 from itertools import product
-
 from sklearn.utils import shuffle
-
 from actions import Action
 
 BLINDS = (1, 2)
@@ -85,7 +80,7 @@ class Player:
                 raise AttributeError
         except AttributeError:
             action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=blinds, verbose=self.verbose)
-            raise AttributeError
+            raise AttributeError((b_round, actions, action, self.id))
         return action
 
     def __repr__(self):
@@ -109,6 +104,14 @@ def agreement(actions, betting_round):
     """
     if len(actions[betting_round][0]) == 0 or len(actions[betting_round][1]) == 0:
         return False
+    # 1 raise 1 call
+    dealer = 0 if actions[-1][0] == 1 else 1
+    if betting_round > 0:  # after preflop, any call/raise situation leads to the end of the betting round
+        if (actions[betting_round][0][-1].type == 'raise' and actions[betting_round][1][-1].type == 'call') or (actions[betting_round][0][-1].type == 'call' and actions[betting_round][1][-1].type == 'raise'):
+            return True
+    else:  # at preflop, if the SB called and the BB raised, it continues playing. If the SB raised and the BB called, it ends the preflop
+        if actions[betting_round][dealer][-1].type == 'raise' and actions[betting_round][1-dealer][-1].type == 'call':
+            return True
     # 1 fold
     if actions[betting_round][0][-1].type == 'fold' or actions[betting_round][1][-1].type == 'fold':
         return True

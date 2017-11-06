@@ -1,7 +1,8 @@
-from game_utils import *
-from actions import *
+from actions import bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
+from game_utils import Player, blinds
 from strategies import strategy_limper
 from nose.tools import *
+
 
 
 def get_actions():
@@ -16,10 +17,12 @@ def get_players():
 def test_blinds():
     # A BB with less than the BB, B is SB
     players = get_players()
+    players[0].stack = 1
+    players[1].stack = 199
     players[1].is_dealer = True
     pot = blinds(players)
-    assert players[0].side_pot == 1
-    assert players[1].side_pot == 1
+    assert players[0].side_pot == 1, players[0].side_pot
+    assert players[1].side_pot == 1, players[1].side_pot
     assert pot == 2
 
     # A SB with only one SB, B BB
@@ -189,20 +192,18 @@ def test_get_raise_from_bucket():
 
 
 def test_get_call_bucket():
-    bet = 1
-    assert get_call_bucket(bet) == 1
     bet = 2
-    assert get_call_bucket(bet) == 2
+    assert get_call_bucket(bet) == 2, get_call_bucket(bet)
     bet = 5
-    assert get_call_bucket(bet) == 4
+    assert get_call_bucket(bet) == 4, get_call_bucket(bet)
     bet = 6
-    assert get_call_bucket(bet) == 4
+    assert get_call_bucket(bet) == 4, get_call_bucket(bet)
     bet = 8
-    assert get_call_bucket(bet) == 5
+    assert get_call_bucket(bet) == 5, get_call_bucket(bet)
     bet = 50
-    assert get_call_bucket(bet) == 11
+    assert get_call_bucket(bet) == 11, get_call_bucket(bet)
     bet = 40
-    assert get_call_bucket(bet) == 10
+    assert get_call_bucket(bet) == 10, get_call_bucket(bet)
     bet = 92
     assert get_call_bucket(bet) == 13, get_call_bucket(bet)
 
@@ -210,27 +211,27 @@ def test_get_call_bucket():
 def test_get_max_bet_bucket():
     stack = 100
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 13
+    assert max_bucket == 13, max_bucket
 
     stack = 150
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 13
+    assert max_bucket == 13, max_bucket
 
     stack = 10
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 5
+    assert max_bucket == 5, max_bucket
 
     stack = 1
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 1
+    assert max_bucket == 14, max_bucket
 
     stack = 23
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 8
+    assert max_bucket == 8, max_bucket
 
     stack = 14
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 6
+    assert max_bucket == 6, max_bucket
 
 
 def test_get_min_raise_bucket():
@@ -413,3 +414,35 @@ def test_authorized_actions_buckets():
     opponent_side_pot = players[1].side_pot
     authorized_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
     assert authorized_actions == [-1, 8, 10, 11, 14], authorized_actions
+
+
+def test_all_actions_preflop():
+    # FIRST SITUATION
+    actions = get_actions()
+    players = get_players()
+    players[1].is_dealer = True
+    blinds(players)
+
+    actions[0][1].append(Action('raise', 3, min_raise=False))  # 5 v 2
+    actions[0][0].append(Action('raise', 22, min_raise=False))  # 5 v 27
+    # it can either call 22, or raise at least 22 (to 49)
+    players[0].side_pot = 27
+    players[1].side_pot = 5
+    players[0].stack -= 27
+    players[1].stack -= 5
+    possible_actions = authorized_actions_buckets(players[1], actions, 0, players[0].side_pot)
+    assert possible_actions == [-1, 8, 11, 12, 13, 14], possible_actions
+
+    # SECOND SITUATION
+    actions = get_actions()
+    players = get_players()
+    players[1].is_dealer = True
+    blinds(players)
+
+    actions[0][1].append(Action('raise', 2, min_raise=True))  # 4 v 2
+    # it can either call 4, or raise at least 2 (to 6)
+    players[1].side_pot += 3
+    players[1].stack -= 3
+    possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
+    assert possible_actions == [-1] + list(range(3, 15)), possible_actions
+

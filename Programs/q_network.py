@@ -93,6 +93,5 @@ def Q_network(hidden_dim=10, n_actions=14):
     Q_values = Dense(n_actions, activation=None)(situation_with_opponent)
 
     Q = Model([hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays], [Q_values, probabilities_of_each_combination_board_only, probabilities_of_each_combination_board_hand, board_value, board_hand_value])
-    Q.summary()
     Q.compile(Adam(), ['mse', 'categorical_crossentropy', 'categorical_crossentropy', 'binary_crossentropy', 'binary_crossentropy'])
     return Q

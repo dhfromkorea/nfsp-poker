@@ -1,10 +1,9 @@
 from time import time
 from evaluation import *
-from state_abstraction import *
-from strategies import strategy_limper
-from game_utils import *
-import numpy as np
+from game_utils import Deck, Player, set_dealer, blinds, deal, agreement, split_pot
+from strategies import strategy_limper, strategy_RL
 from utils import *
+from q_network import *
 
 
 verbose = True
@@ -12,8 +11,11 @@ verbose = True
 # instantiate game
 deck = Deck()
 INITIAL_MONEY = 100*BLINDS[0]
-players = [Player(0, strategy_limper, INITIAL_MONEY, verbose=True, name='SB'),
-           Player(1, strategy_limper, INITIAL_MONEY, verbose=True, name='DH')]
+# players = [Player(0, strategy_limper, INITIAL_MONEY, verbose=True, name='SB'),
+#            Player(1, strategy_limper, INITIAL_MONEY, verbose=True, name='DH')]
+Q = Q_network(10, 14)
+players = [Player(0, strategy_RL(Q, False), INITIAL_MONEY, verbose=True, name='SB'),
+           Player(1, strategy_RL(Q, False), INITIAL_MONEY, verbose=True, name='DH')]
 board = []
 dealer = set_dealer(players)
 MEMORY = []  # a list of dicts with keys s,a,r,s'
@@ -89,9 +91,13 @@ while True:
                     update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions)
                 ##############
 
-                player.side_pot += action.value
-                player.stack -= action.value
-                pot += action.value
+                if action.type == 'raise':  # a raise is defined by the amount above the opponent side pot
+                    value = action.value + players[1-to_play].side_pot
+                else:
+                    value = action.value
+                player.side_pot += value
+                player.stack -= value
+                pot += value
                 assert pot + players[0].stack + players[1].stack == 2*INITIAL_MONEY
                 actions[b_round][player.id].append(action)
 
@@ -189,7 +195,9 @@ while True:
         ##### RL #####
         # If the agent won, gives it the chips
         if winner == 0:
-            MEMORY[-1]['r'] += pot
+            # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
+            if len(MEMORY) > 0:
+                MEMORY[-1]['r'] += pot
         ##############
     else:
         pot_0, pot_1 = split_pot(actions, dealer)
