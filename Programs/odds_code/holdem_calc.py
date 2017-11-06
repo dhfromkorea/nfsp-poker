@@ -11,7 +11,7 @@ def calculate(board, exact, num, input_file, hole_cards, verbose):
     hole_cards, n, e, board, filename = holdem_argparser.parse_lib_args(args)
     return run(hole_cards, n, e, board, filename, verbose)
 
-def run(hole_cards, num, exact, board, file_name, verbose):
+def run(hole_cards, num, exact, board, file_name, verbose, pad_opp = True):
     if file_name:
         input_file = open(file_name, 'r')
         for line in input_file:
@@ -25,12 +25,14 @@ def run(hole_cards, num, exact, board, file_name, verbose):
     else:
         #import pdb; pdb.set_trace()
         deck = holdem_functions.generate_deck(hole_cards, board)
-        return run_simulation(hole_cards, num, exact, board, deck, verbose)
+        return run_simulation(hole_cards, num, exact, board, deck, verbose,pad_opp = pad_opp)
 
-def run_simulation(hole_cards, num, exact, given_board, deck, verbose,pad_opp=True):
+def run_simulation(hole_cards, num, exact, given_board, deck, verbose, pad_opp=True):
     num_players = len(hole_cards)
     if pad_opp:
         num_players += 1
+    #import pdb
+    #pdb.set_trace()
     # Create results data structures which track results of comparisons
     # 1) result_histograms: a list for each player that shows the number of
     #    times each type of poker hand (e.g. flush, straight) was gotten
@@ -63,12 +65,12 @@ def run_simulation(hole_cards, num, exact, given_board, deck, verbose,pad_opp=Tr
     else:
         holdem_functions.find_winner(generate_boards, deck, hole_cards, num,
                                      board_length, given_board, winner_list,
-                                     result_histograms)
+                                     result_histograms,pad_opp = pad_opp)
     if verbose:
         holdem_functions.print_results(hole_cards, winner_list,
                                        result_histograms)
     return holdem_functions.return_results(hole_cards, winner_list,
-                                       result_histograms)
+                                       result_histograms,pad_opp = pad_opp)
 if __name__ == '__main__':
     start = time.time()
     main()
