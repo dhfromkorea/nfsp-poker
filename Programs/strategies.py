@@ -3,7 +3,6 @@ Contains strategy functions
 
 They should all have the same signature, but don't always use all this information
 """
-from actions import idx_to_bucket, bucket_to_action, sample_action, authorized_actions_buckets
 from game_utils import *
 from state_abstraction import build_state
 from utils import softmax
@@ -126,6 +125,27 @@ def strategy_limper(player, board, pot, actions, b_round, opponent_stack, oppone
                     return Action('fold')
 
 
+def strategy_random(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, greedy=True, blinds=BLINDS, verbose=False):
+    """
+    Take decision using Q values (in a greedy or random way)
+    :param player:
+    :param board:
+    :param pot:
+    :param actions:
+    :param b_round:
+    :param opponent_stack:
+    :param Q: the Keras neural network that takes states as inputs
+    :param greedy: True for greedy, False for Q-softmax sampling
+    :param blinds:
+    :param verbose:
+    :return:
+    """
+    possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
+    random_action_bucket = np.random.choice(possible_actions)
+    random_action = bucket_to_action(random_action_bucket, actions, b_round, player, opponent_side_pot)
+    return random_action
+
+
 def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q, greedy=True, blinds=BLINDS, verbose=False):
     # @todo: add a param eps for eps-greedy policies ?
     """
@@ -143,7 +163,6 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     :return:
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
-    print(possible_actions)
     state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds)
     state = [s.reshape(tuple([1] + list(s.shape))) for s in state]
     Q_values = Q.predict(state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues

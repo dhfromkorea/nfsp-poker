@@ -1,6 +1,4 @@
 import numpy as np
-from state_abstraction import cards_to_array, actions_to_array, action_to_array
-from game_utils import BLINDS
 
 
 def softmax(x):
@@ -22,15 +20,3 @@ def sample_categorical(probabilities):
             return k
     raise ValueError('It should have returned something')
 
-
-def update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions):
-    player = players[0]
-    state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
-              np.array(BLINDS), dealer, actions_to_array(actions)]
-    action_ = action_to_array(action)
-    reward_ = -action.value
-    transition = {'s': state_, 'a': action_, 'r': reward_}
-    if len(MEMORY) > 0 and not new_game:  # don't take into account transitions overlapping two different games
-        # don't forget to store next state
-        MEMORY[-1]["s'"] = state_
-    MEMORY.append(transition)

@@ -1,8 +1,6 @@
 from keras.layers import Input, Concatenate, Add, Reshape, Flatten, Lambda
 from keras.models import Model
 from models import Conv1D, Dense, Sum, IsNonZero
-import numpy as np
-import keras.backend as K
 from keras.optimizers import Adam
 
 
