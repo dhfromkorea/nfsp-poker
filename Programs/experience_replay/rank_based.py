@@ -9,7 +9,7 @@ import math
 import random
 import numpy as np
 
-import binary_heap
+from Programs.experience_replay import binary_heap
 
 
 class Experience(object):
