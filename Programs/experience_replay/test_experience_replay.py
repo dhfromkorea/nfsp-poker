@@ -1,16 +1,10 @@
 import unittest
-from Programs.experience_replay.rank_based import Experience
-from Programs.q_network import Q_network
+from experience_replay.experience_replay import ReplayBuffer
+from q_network import Q_network
 
 class testReplayBuffer(unittest.TestCase):
     def setUp(self):
-        conf = {'size': 50,
-                'learn_start': 10,
-                'partition_num': 5,
-                'total_step': 100,
-                'batch_size': 4}
-        self.conf = conf
-        self.replay_buffer = Experience(conf)
+        self.replay_buffer = ReplayBuffer()
         self.network = Q_network()
 
     def test_store_to_replay_buffer(self):

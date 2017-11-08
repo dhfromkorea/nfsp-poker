@@ -16,6 +16,7 @@ from q_network import *
 from strategies import strategy_RL, strategy_random
 from utils import *
 from config import BLINDS
+from experience_replay.experience_replay import ReplayBuffer
 
 
 def update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions):

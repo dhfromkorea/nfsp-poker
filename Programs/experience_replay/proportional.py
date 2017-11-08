@@ -1,9 +1,8 @@
 import numpy
 import random
-import sum_tree
+from experience_replay import sum_tree
 
-
-class Experience(object):
+class ProportionalExperienceReplay(object):
     """ The class represents prioritized experience replay buffer.
 
     The class has functions: store samples, pick samples with 
@@ -32,7 +31,7 @@ class Experience(object):
         self.batch_size = batch_size
         self.alpha = alpha
 
-    def add(self, data, priority):
+    def store(self, data, priority):
         """ Add new sample.
         
         Parameters
@@ -44,7 +43,7 @@ class Experience(object):
         """
         self.tree.add(data, priority**self.alpha)
 
-    def select(self, beta):
+    def sample(self, beta):
         """ The method return samples randomly.
         
         Parameters
@@ -107,7 +106,3 @@ class Experience(object):
         priorities = [self.tree.get_val(i)**-old_alpha for i in range(self.tree.filled_size())]
         self.priority_update(range(self.tree.filled_size()), priorities)
 
-        
-            
-        
-        
