@@ -70,7 +70,7 @@ def run_simulation(hole_cards, num, exact, given_board, deck, verbose, pad_opp=T
         holdem_functions.print_results(hole_cards, winner_list,
                                        result_histograms)
     return holdem_functions.return_results(hole_cards, winner_list,
-                                       result_histograms,pad_opp = pad_opp)
+                                       result_histograms,pad_opp = pad_opp, board = given_board )
 if __name__ == '__main__':
     start = time.time()
     main()
