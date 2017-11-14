@@ -42,18 +42,21 @@ def generate_combinations(poss_cards, r):
     return tot_out
 
 def gen_odds():
-    req = [2,5,6]    
+    req = [5,6]    
     for r in req:
         final_out = {}
-        combos = generate_combinations(poss_cards, 2) 
+        combos = generate_combinations(poss_cards, r) 
         i = 0
-        for combo in combos:            
-            out = hc.run((tuple(combo),),int(1e6),False,None,None,False)
+        for combo in combos:       
+            board = None
+            if r > 2:
+                board = list(combo[2:])
+            out = hc.run((tuple(combo[0:2]),),int(1e6),False,board,None,False)
             final_out = {**final_out, **out}
             i+=1
             #import pdb;pdb.set_trace()
-        if i % (len(combos)//25) == 0 and i > 0:
-            print("Req: " + str(r) + "- " + str(i) + " Iterations Over")
+            if i % (len(combos)//25) == 0 and i > 0:
+                print("Req: " + str(r) + "- " + str(i) + " Iterations Over")
         
         pickle.dump(final_out, open("hand_eval_" + str(r) +".p", 'wb'))
         print("Set of ", r, " cards over and pickled")       

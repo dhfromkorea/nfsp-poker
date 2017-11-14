@@ -269,7 +269,7 @@ def print_results(hole_cards, winner_list, result_histograms):
             print(hand_rankings[index], ": ", float(elem) / float_iterations)
         print("\n")
 
-def return_results(hole_cards, winner_list, result_histograms,pad_opp=True):
+def return_results(hole_cards, winner_list, result_histograms,pad_opp=True, board = None):
     float_iterations = float(sum(winner_list))
     results = {}
     for index, hole_card in enumerate(hole_cards):
@@ -287,7 +287,13 @@ def return_results(hole_cards, winner_list, result_histograms,pad_opp=True):
         for index, elem in enumerate(histogram):            
                 results[hand_rankings[index]] = float(elem) / float_iterations
     final_results = {}
-    final_results[frozenset(cards)] = results
+
+    if board == None:
+        state = frozenset(cards)
+    else:
+        b_cards = [x.__str__() for x in board]
+        state = tuple([frozenset(cards), frozenset(b_cards)])
+    final_results[state] = results
     return final_results
     
 # Returns the winning percentages
