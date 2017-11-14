@@ -5,9 +5,7 @@ Define classes for :
     - Player (two cards, a stack, dealer or not, all in or not)
     - Action (the bets)
 
-Setting the blinds, the dealer button, deal cards
-
-Evaluate what hand is better
+Setting the blinds, the dealer button, deal cards, processing actions, transforming the board into a
 """
 from itertools import product
 from sklearn.utils import shuffle
