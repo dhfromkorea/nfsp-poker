@@ -7,7 +7,7 @@
 import sys
 import math
 
-from Programs.experience_replay import utility
+from experience_replay import utility
 
 
 class BinaryHeap(object):

@@ -16,37 +16,30 @@ from q_network import *
 from strategies import strategy_RL, strategy_random
 from utils import *
 from config import BLINDS
-from experience_replay.experience_replay import ReplayBuffer
+from experience_replay.experience_replay import ReplayBufferManager
 
 
-def update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions):
-    """
-    Update the memory with transitions
-    :param MEMORY: a list of dicts with keys `s`, `a`, `r`, `s'`
-    :param players: a list of players
-    :param action: an Action object
-    :param new_game: whether it is a new game beginning (one of the player went bankrupt)
-    :param board:
-    :param pot: the amount of money in the pot
-    :param dealer: who the dealer is (the id of the player)
-    :param actions: a dict {b_round: {player: [actions_it_took]}}
-    :return:
-    """
-    player = players[0]  # player 0 is the hero
+def make_transition(players, action, new_game, board, pot, dealer, actions, global_time_step):
+        player = players[0]  # player 0 is the hero
+        # matrify the interesting quantities
+        state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
+                  np.array(BLINDS), dealer, actions_to_array(actions)]
 
-    # matrify the interesting quantities
-    state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
-              np.array(BLINDS), dealer, actions_to_array(actions)]
-    action_ = action_to_array(action)
-    reward_ = -action.value
+        action_ = action_to_array(action)
+        reward_ = -action.value
+        step_ = global_time_step
 
-    # store transition
-    transition = {'s': state_, 'a': action_, 'r': reward_}
-    if len(MEMORY) > 0 and not new_game:  # don't take into account transitions overlapping two different games
-        # don't forget to store next state
-        MEMORY[-1]["s'"] = state_
-    MEMORY.append(transition)
-
+        # we need to inform replay manager of some extra stuff
+        transition = {'s': state_,
+                      'a': action_,
+                      'r': reward_,
+                      'next_s': None,
+                      't': step_,
+                      'is_new_game': new_game,
+                      'is_terminal': False,
+                      'final_reward': 0
+                     }
+        return transition
 
 verbose = True
 
@@ -60,25 +53,30 @@ players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=True, name='SB
 #            Player(1, strategy_random, INITIAL_MONEY, verbose=True, name='DH')]
 board = []
 dealer = set_dealer(players)
-MEMORY = []  # a list of dicts with keys s,a,r,s'
 new_game = True
 episodes = 0
 games = {'n': 0, '#episodes': []}  # some statistics on the games
 t0 = time()
 
+# experience replay
+# case = normal (RL), nsfp (RL + SL)
+replay_buffer_manager = ReplayBufferManager(case='normal')
+global_time_step = 0
 while True:
     # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
     if new_game:
         games['n'] += 1
         games['#episodes'].append(episodes)
         episodes = 0
+        buffer_length = replay_buffer_manager.size()
+
         if verbose:
             print('####################'
                   'New game (%s) starts.\n'
                   'Players get cash\n'
                   'Last game lasted %.1f\n'
                   'Memory contains %s transitions\n'
-                  '####################' % (str(games['n']), time() - t0, str(len(MEMORY))))
+                  '####################' % (str(games['n']), time() - t0, buffer_length))
             t0 = time()
         players[0].cash(INITIAL_MONEY)
         players[1].cash(INITIAL_MONEY)
@@ -144,7 +142,13 @@ while True:
 
                 # RL : Store transitions in memory. Just for the agent
                 if player.id == 0:
-                    update_memory(MEMORY, players, action, new_game, board, pot, dealer, actions)
+                    # KEEP TRACK OF TRANSITIONS
+                    global_time_step += 1
+                    transition = make_transition(players, action, new_game, board,
+                                                 pot, dealer, actions,
+                                                 global_time_step)
+                    # this will handle MEMORY[-1]['s''] = state_ automatically
+                    replay_buffer_manager.store_transition(transition, buffer_type='rl')
 
                 # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
                 if action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
@@ -212,16 +216,19 @@ while True:
 
             # POTENTIALLY STOP THE EPISODE IF FOLD OCCURRED
             if fold_occured:
+                # TODO: should we store transition to replay buffer?
                 break
         else:
             # DEAL REMAINING CARDS
             for j in range(b_round, 4):
                 deal(deck, players, board, j, verbose=verbose)
+            
+            transition = make_transition(players, action, new_game, board,
+                                         pot, dealer, actions,
+                                         global_time_step)
 
-            # KEEP TRACK OF TRANSITIONS
-            state_ = [cards_to_array(players[0].cards), cards_to_array(board), pot, players[0].stack, players[1].stack,
-                      np.array(BLINDS), dealer, actions_to_array(actions)]
-            MEMORY[-1]["s'"] = state_
+            # this will handle MEMORY[-1]['s''] = state_ automatically
+            replay_buffer_manager.store_transition(transition, buffer_type='rl')
 
             # END THE EPISODE
             players[0].contribution_in_this_pot += players[0].side_pot * 1
@@ -229,6 +236,12 @@ while True:
             players[0].side_pot = 0
             players[1].side_pot = 0
             break
+
+    # store terminal transition from the previous step
+    # we want to modify the reward of the previous step
+    # based on the calculation below
+    transition = {'s': 'TERMINAL',
+                  'final_reward': 0}
 
     # WINNERS GETS THE MONEY.
     # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
@@ -266,6 +279,7 @@ while True:
                 print(players[0].name + ' cards : ' + str(players[0].cards) + ' and score: ' + str(hand_0[0]))
                 print(players[1].name + ' cards : ' + str(players[1].cards) + ' and score: ' + str(hand_1[0]))
                 print('Pot split')
+    
     if not split:
         # if the winner isn't all in, it takes everything
         if players[winner].stack > 0:
@@ -284,8 +298,9 @@ while True:
         # If the agent won, gives it the chips and reminds him that it won the chips
         if winner == 0:
             # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-            if len(MEMORY) > 0:
-                MEMORY[-1]['r'] += pot
+            if not replay_buffer_manager.is_empty:
+                transition['final_reward']= pot
+                
     else:
         # SPLIT: everybody takes back its money
         pot_0, pot_1 = players[0].contribution_in_this_pot, players[1].contribution_in_this_pot
@@ -296,8 +311,11 @@ while True:
         players[1].contribution_in_this_pot = 0
 
         # RL : update the memory with the amount you won
-        MEMORY[-1]['r'] += pot_0
+        transition['final_reward']= pot_0
         split = False
+
+    # store final transition
+    replay_buffer_manager.store_transition(transition, buffer_type='rl')
 
     # RESET VARIABLES
     pot = 0
@@ -325,3 +343,4 @@ while True:
     # players[0].strategy = strategy_RL(Q, True)
     # Watch out, weights of the opponent should be kept frozen. Check that updating those of player doesn't help his
     # you may find the function Q.get_weights() and Q.set_weights(weights) useful. They are symmetrical of course
+
