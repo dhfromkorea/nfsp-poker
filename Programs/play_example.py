@@ -19,7 +19,7 @@ from config import BLINDS
 from experience_replay.experience_replay import ReplayBufferManager
 
 
-def make_transition(players, action, new_game, board, pot, dealer, actions, global_time_step):
+def make_experience(players, action, new_game, board, pot, dealer, actions, global_step):
         player = players[0]  # player 0 is the hero
         # matrify the interesting quantities
         state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
@@ -27,10 +27,10 @@ def make_transition(players, action, new_game, board, pot, dealer, actions, glob
 
         action_ = action_to_array(action)
         reward_ = -action.value
-        step_ = global_time_step
+        step_ = global_step
 
         # we need to inform replay manager of some extra stuff
-        transition = {'s': state_,
+        experience = {'s': state_,
                       'a': action_,
                       'r': reward_,
                       'next_s': None,
@@ -39,16 +39,16 @@ def make_transition(players, action, new_game, board, pot, dealer, actions, glob
                       'is_terminal': False,
                       'final_reward': 0
                      }
-        return transition
+        return experience
 
-verbose = True
+verbose = False
 
 # instantiate game
 deck = Deck()
 INITIAL_MONEY = 100*BLINDS[0]
 Q = Q_network(10, 14)
-players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=True, name='SB'),
-           Player(1, strategy_RL(Q, True), INITIAL_MONEY, verbose=True, name='DH')]
+players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=verbose, name='SB'),
+           Player(1, strategy_RL(Q, True), INITIAL_MONEY, verbose=verbose, name='DH')]
 # players = [Player(0, strategy_random, INITIAL_MONEY, verbose=True, name='SB'),
 #            Player(1, strategy_random, INITIAL_MONEY, verbose=True, name='DH')]
 board = []
@@ -59,23 +59,35 @@ games = {'n': 0, '#episodes': []}  # some statistics on the games
 t0 = time()
 
 # experience replay
-# case = normal (RL), nsfp (RL + SL)
-replay_buffer_manager = ReplayBufferManager(case='normal')
-global_time_step = 0
+# check ReplayBufferManager to see what each hyperparameter means
+# it is known the performance of PER as measured by
+# game score with PER / game score without PER
+# varies a lot according to these hyperparameters
+# so we will have to tune these
+conf = {'size': 1000,
+        'learn_start': 100,
+        'partition_num': 10,
+        'total_step': 10000,
+        'batch_size': 10
+        }
+buffer_manager_rl = ReplayBufferManager(target='rl', **conf)
+# buffer_manager_sl = ReplayBufferManager(target='sl')
+global_step = 0
+
 while True:
     # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
     if new_game:
         games['n'] += 1
         games['#episodes'].append(episodes)
         episodes = 0
-        buffer_length = replay_buffer_manager.size()
+        buffer_length = buffer_manager_rl.size
 
         if verbose:
             print('####################'
                   'New game (%s) starts.\n'
                   'Players get cash\n'
                   'Last game lasted %.1f\n'
-                  'Memory contains %s transitions\n'
+                  'Memory contains %s experiences\n'
                   '####################' % (str(games['n']), time() - t0, buffer_length))
             t0 = time()
         players[0].cash(INITIAL_MONEY)
@@ -140,15 +152,15 @@ while True:
                         break
                     continue
 
-                # RL : Store transitions in memory. Just for the agent
+                # RL : Store experiences in memory. Just for the agent
                 if player.id == 0:
                     # KEEP TRACK OF TRANSITIONS
-                    global_time_step += 1
-                    transition = make_transition(players, action, new_game, board,
+                    global_step += 1
+                    experience = make_experience(players, action, new_game, board,
                                                  pot, dealer, actions,
-                                                 global_time_step)
+                                                 global_step)
                     # this will handle MEMORY[-1]['s''] = state_ automatically
-                    replay_buffer_manager.store_transition(transition, buffer_type='rl')
+                    buffer_manager_rl.store_experience(experience)
 
                 # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
                 if action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
@@ -216,19 +228,19 @@ while True:
 
             # POTENTIALLY STOP THE EPISODE IF FOLD OCCURRED
             if fold_occured:
-                # TODO: should we store transition to replay buffer?
+                # TODO: should we store experience to replay buffer?
                 break
         else:
             # DEAL REMAINING CARDS
             for j in range(b_round, 4):
                 deal(deck, players, board, j, verbose=verbose)
             
-            transition = make_transition(players, action, new_game, board,
+            experience = make_experience(players, action, new_game, board,
                                          pot, dealer, actions,
-                                         global_time_step)
+                                         global_step)
 
             # this will handle MEMORY[-1]['s''] = state_ automatically
-            replay_buffer_manager.store_transition(transition, buffer_type='rl')
+            buffer_manager_rl.store_experience(experience)
 
             # END THE EPISODE
             players[0].contribution_in_this_pot += players[0].side_pot * 1
@@ -237,12 +249,16 @@ while True:
             players[1].side_pot = 0
             break
 
-    # store terminal transition from the previous step
+    # store terminal experience from the previous step
     # we want to modify the reward of the previous step
     # based on the calculation below
-    transition = {'s': 'TERMINAL',
-                  'final_reward': 0}
-
+    experience = {'s': 'TERMINAL',
+          'r': 0,
+          't': global_step,
+          'is_new_game': new_game,
+          'is_terminal': False,
+          'final_reward': 0
+         }
     # WINNERS GETS THE MONEY.
     # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
     split = False
@@ -298,8 +314,8 @@ while True:
         # If the agent won, gives it the chips and reminds him that it won the chips
         if winner == 0:
             # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-            if not replay_buffer_manager.is_empty:
-                transition['final_reward']= pot
+            if not buffer_manager_rl.is_last_step_buffer_empty:
+                experience['final_reward']= pot
                 
     else:
         # SPLIT: everybody takes back its money
@@ -311,11 +327,11 @@ while True:
         players[1].contribution_in_this_pot = 0
 
         # RL : update the memory with the amount you won
-        transition['final_reward']= pot_0
+        experience['final_reward']= pot_0
         split = False
 
-    # store final transition
-    replay_buffer_manager.store_transition(transition, buffer_type='rl')
+    # store final experience
+    buffer_manager_rl.store_experience(experience)
 
     # RESET VARIABLES
     pot = 0
@@ -343,4 +359,28 @@ while True:
     # players[0].strategy = strategy_RL(Q, True)
     # Watch out, weights of the opponent should be kept frozen. Check that updating those of player doesn't help his
     # you may find the function Q.get_weights() and Q.set_weights(weights) useful. They are symmetrical of course
-
+    gamma = 0.95
+    is_training = False
+    if global_step > 110:
+        # sample a minibatch of experiences
+        exps, imp_weights, ids = buffer_manager_rl.sample(global_step=global_step)
+        # TODO: need to flatten states and actions so keras function
+        # knows how to process them
+        states = exps[:, 0]
+        actions = exps[:, 1]
+        rewards = exps[:, 2]
+        next_states = exps[:, 3]
+        import pdb;pdb.set_trace()
+        # replay buffer works for storing, sampling and updating
+        # currently the training does not work
+        # we need to first fix all the TODOs noted here
+        if is_training:
+            Q_pred = Q.predict_on_batch(states)
+            # TODO: use a fixed target network
+            Q_pred_next = Q.predict_on_batch(next_states)
+            Q_target = rewards + gamma * Q_pred_next
+            # TODO: figure out how to scale loss function based on importance weights
+            deltas = Q.train_on_batch(Q_pred, Q_target, sample_weight=imp_weights)
+            # update priority of the sampled experiences with new td errors
+            buffer_manager_rl.update(ids, deltas)
+        # TODO: sync target network with the orignal Q

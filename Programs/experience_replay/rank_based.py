@@ -13,6 +13,7 @@ from experience_replay import binary_heap
 
 
 class RankExperienceReplay(object):
+    # TODO: save the experience in a pickle
     def __init__(self, conf):
         self.size = conf['size']
         self.replace_flag = conf['replace_old'] if 'replace_old' in conf else True
@@ -116,6 +117,7 @@ class RankExperienceReplay(object):
         else:
             sys.stderr.write('Insert failed\n')
             return False
+        print('experience', self._experience)
 
     def retrieve(self, indices):
         """
@@ -132,15 +134,17 @@ class RankExperienceReplay(object):
         """
         self.priority_queue.balance_tree()
 
-    def update_priority(self, indices, delta):
+    def update_priority(self, indices, deltas):
         """
         update priority according indices and deltas
         :param indices: list of experience id
-        :param delta: list of delta, order correspond to indices
+        :param deltas: list of delta, order correspond to indices
         :return: None
         """
         for i in range(0, len(indices)):
-            self.priority_queue.update(math.fabs(delta[i]), indices[i])
+            res = self.priority_queue.update(math.fabs(deltas[i]), indices[i])
+            if not res:
+                sys.stderr.write('there was an issue updating priority\n')
 
     def sample(self, global_step):
         """
@@ -151,6 +155,7 @@ class RankExperienceReplay(object):
         :return: rank_e_id, list, samples id, used for update priority
         """
         if self.record_size < self.learn_start:
+            print('record_size',self.record_size)
             sys.stderr.write('Record size less than learn start! Sample failed\n')
             return False, False, False
 
@@ -178,5 +183,5 @@ class RankExperienceReplay(object):
         # convert to experience id
         rank_e_id = self.priority_queue.priority_to_experience(rank_list)
         # get experience id according rank_e_id
-        experience = self.retrieve(rank_e_id)
+        experience = np.array(self.retrieve(rank_e_id))
         return experience, w, rank_e_id
