@@ -12,7 +12,7 @@ actions per betting round
 from time import time
 from evaluation import *
 from game_utils import Deck, Player, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
-from q_network import *
+from q_network import get_Q_and_PI_networks
 from strategies import strategy_RL, strategy_random
 from utils import *
 from config import BLINDS
@@ -46,7 +46,7 @@ verbose = False
 # instantiate game
 deck = Deck()
 INITIAL_MONEY = 100*BLINDS[0]
-Q = Q_network(10, 14)
+Q, PI = get_Q_and_PI_networks()
 players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=verbose, name='SB'),
            Player(1, strategy_RL(Q, True), INITIAL_MONEY, verbose=verbose, name='DH')]
 # players = [Player(0, strategy_random, INITIAL_MONEY, verbose=True, name='SB'),
@@ -70,8 +70,8 @@ conf = {'size': 1000,
         'total_step': 10000,
         'batch_size': 10
         }
-buffer_manager_rl = ReplayBufferManager(target='rl', **conf)
-# buffer_manager_sl = ReplayBufferManager(target='sl')
+buffer_rl = ReplayBufferManager(target='rl', **conf)
+# buffer_sl = ReplayBufferManager(target='sl')
 global_step = 0
 
 while True:
@@ -80,7 +80,7 @@ while True:
         games['n'] += 1
         games['#episodes'].append(episodes)
         episodes = 0
-        buffer_length = buffer_manager_rl.size
+        buffer_length = buffer_rl.size
 
         if verbose:
             print('####################'
@@ -160,7 +160,7 @@ while True:
                                                  pot, dealer, actions,
                                                  global_step)
                     # this will handle MEMORY[-1]['s''] = state_ automatically
-                    buffer_manager_rl.store_experience(experience)
+                    buffer_rl.store_experience(experience)
 
                 # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
                 if action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
@@ -240,7 +240,7 @@ while True:
                                          global_step)
 
             # this will handle MEMORY[-1]['s''] = state_ automatically
-            buffer_manager_rl.store_experience(experience)
+            buffer_rl.store_experience(experience)
 
             # END THE EPISODE
             players[0].contribution_in_this_pot += players[0].side_pot * 1
@@ -314,7 +314,7 @@ while True:
         # If the agent won, gives it the chips and reminds him that it won the chips
         if winner == 0:
             # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-            if not buffer_manager_rl.is_last_step_buffer_empty:
+            if not buffer_rl.is_last_step_buffer_empty:
                 experience['final_reward']= pot
                 
     else:
@@ -331,7 +331,7 @@ while True:
         split = False
 
     # store final experience
-    buffer_manager_rl.store_experience(experience)
+    buffer_rl.store_experience(experience)
 
     # RESET VARIABLES
     pot = 0
@@ -359,28 +359,33 @@ while True:
     # players[0].strategy = strategy_RL(Q, True)
     # Watch out, weights of the opponent should be kept frozen. Check that updating those of player doesn't help his
     # you may find the function Q.get_weights() and Q.set_weights(weights) useful. They are symmetrical of course
-    gamma = 0.95
+    
+    GAMMA = 0.95
     is_training = False
-    if global_step > 110:
+    # TODO: add another network for NSFP and M_sl
+    # turns out M_SL does not use PER (it uses Reservoir Sampling (Vitter, 1985)
+    # I will implement this soon
+    # we start learning after LEARN_START (see params to ReplayBuffer)
+    if global_step > 101:
+        import pdb;pdb.set_trace()
         # sample a minibatch of experiences
-        exps, imp_weights, ids = buffer_manager_rl.sample(global_step=global_step)
+        exps, imp_weights, ids = buffer_rl.sample(global_step=global_step)
         # TODO: need to flatten states and actions so keras function
         # knows how to process them
         states = exps[:, 0]
         actions = exps[:, 1]
         rewards = exps[:, 2]
         next_states = exps[:, 3]
-        import pdb;pdb.set_trace()
         # replay buffer works for storing, sampling and updating
         # currently the training does not work
         # we need to first fix all the TODOs noted here
         if is_training:
             Q_pred = Q.predict_on_batch(states)
-            # TODO: use a fixed target network
-            Q_pred_next = Q.predict_on_batch(next_states)
-            Q_target = rewards + gamma * Q_pred_next
+            # TODO: use a fixed target network for next state preds
+            Q_target = rewards + GAMMA * Q.predict_on_batch(next_states)
             # TODO: figure out how to scale loss function based on importance weights
+            # basically -> gradient = imp_weights * (Q_target - Q_pred) * grad_Q_wrt_theta
             deltas = Q.train_on_batch(Q_pred, Q_target, sample_weight=imp_weights)
             # update priority of the sampled experiences with new td errors
-            buffer_manager_rl.update(ids, deltas)
+            buffer_rl.update(ids, deltas)
         # TODO: sync target network with the orignal Q
