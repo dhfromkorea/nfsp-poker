@@ -22,7 +22,7 @@ def sample_categorical(probabilities):
     raise ValueError('It should have returned something')
 
 
-def variable(array, requires_grad=False, to_float=True):
+def variable(array, requires_grad=False, to_float=True, cuda=False):
     """Wrapper for t.autograd.Variable"""
     if isinstance(array, np.ndarray):
         v = t.autograd.Variable(t.from_numpy(array), requires_grad=requires_grad)
@@ -33,6 +33,8 @@ def variable(array, requires_grad=False, to_float=True):
     elif isinstance(array, t.Tensor):
         v = t.autograd.Variable(array, requires_grad=requires_grad)
     else: raise ValueError
+    if cuda:
+        v = v.cuda()
     if to_float:
         return v.float()
     else:
