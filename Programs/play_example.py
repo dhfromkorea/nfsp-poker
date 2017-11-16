@@ -22,8 +22,8 @@ from experience_replay.experience_replay import ReplayBufferManager
 def make_experience(players, action, new_game, board, pot, dealer, actions, global_step):
         player = players[0]  # player 0 is the hero
         # matrify the interesting quantities
-        state_ = [cards_to_array(player.cards), cards_to_array(board), pot, player.stack, players[1].stack,
-                  np.array(BLINDS), dealer, actions_to_array(actions)]
+        state_ = [cards_to_array(player.cards), cards_to_array(board), np.array([pot]), np.array([player.stack]), np.array([players[1].stack]),
+                  np.array([BLINDS[1]]), np.array([dealer])] + actions_to_array(actions)
 
         action_ = action_to_array(action)
         reward_ = -action.value
@@ -228,7 +228,8 @@ while True:
 
             # POTENTIALLY STOP THE EPISODE IF FOLD OCCURRED
             if fold_occured:
-                # TODO: should we store experience to replay buffer?
+                # TODO: should we store exp
+                # erience to replay buffer?
                 break
         else:
             # DEAL REMAINING CARDS
@@ -380,12 +381,12 @@ while True:
         # currently the training does not work
         # we need to first fix all the TODOs noted here
         if is_training:
-            Q_pred = Q.predict_on_batch(states)
+            # Q_pred = Q.predict_on_batch(states)
             # TODO: use a fixed target network for next state preds
-            Q_target = rewards + GAMMA * Q.predict_on_batch(next_states)
+            Q_target = rewards + GAMMA * Q.predict_on_batch(next_states) # Q_target(s', argmax_a(Q(s', a)))
             # TODO: figure out how to scale loss function based on importance weights
             # basically -> gradient = imp_weights * (Q_target - Q_pred) * grad_Q_wrt_theta
-            deltas = Q.train_on_batch(Q_pred, Q_target, sample_weight=imp_weights)
+            deltas = Q.train_on_batch(states, Q_target, sample_weight=imp_weights)
             # update priority of the sampled experiences with new td errors
             buffer_rl.update(ids, deltas)
         # TODO: sync target network with the orignal Q
