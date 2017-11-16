@@ -1,102 +1,147 @@
-from keras.layers import Input, Concatenate, Add, Reshape, Flatten, Lambda
-from keras.models import Model
-from models import Conv1D, Dense, Sum, IsNonZero
-from keras.optimizers import Adam
+import torch as t
+from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid
+import numpy as np
 
 
-def get_Q_and_PI_networks(hidden_dim=10, n_actions=14):
-    hand = Input((13,4))  # zero everywhere and 1 for your cards
-    board = Input((3,13,4))  # 3 rounds of board: flop [0,:,:], turn [1,:,:] and river [2,:,:]
-    pot = Input((1,))
-    stack = Input((1,))
-    opponent_stack = Input((1,))
-    blinds = Input((2,))  # small, big blinds
-    dealer = Input((1,))  # 1 if you are the dealer, 0 otherwise
-    # opponent_model = Input((2,))  # tendency to raise, number of hands played: 2 numbers between 0 and 1
-    preflop_plays = Input((6, 5, 2))  # 6 plays max (check then 5 times raises), 5 possible actions (check,bet,call,raise,all-in), 2 players
-    flop_plays = Input((6, 5, 2))
-    turn_plays = Input((6, 5, 2))
-    river_plays = Input((6, 5, 2))
-    # value_of_hand = Input((2,))  # combination_type, rank_in_this_type
-
-    # Processing board and hand specifically to detect flush and straight
-    color_hand = Sum(1)(hand)
-    color_board = Sum((1,2))(board)
-    kinds_hand_for_ptqf = Sum(2)(hand)
-    kinds_hand_for_straight = IsNonZero()(kinds_hand_for_ptqf)
-    kinds_board_for_ptqf = Sum((1,3))(board)
-    kinds_board_for_straight = IsNonZero()(kinds_board_for_ptqf)
-
-    colors = Concatenate(2)([Reshape((4,1))(color_hand), Reshape((4,1))(color_board)])
-    kinds_for_straight = Concatenate(2)([Reshape((13,1))(kinds_hand_for_straight), Reshape((13,1))(kinds_board_for_straight)])
-    kinds_for_ptqf = Flatten()(Concatenate(2)([Reshape((13,1))(kinds_hand_for_ptqf), Reshape((13,1))(kinds_board_for_ptqf)]))
-    kinds_for_straight = Conv1D(5,1, activation="selu", BN=False)(kinds_for_straight)
-    kinds_for_straight = Conv1D(1, 1, activation='selu', BN=False)(
-        Concatenate(-1)([
-            Conv1D(1, 3, activation='selu', BN=False)(kinds_for_straight),
-            Conv1D(3, 3, dilation_rate=2, activation='selu', BN=False)(kinds_for_straight)
-        ])
-    )
-    kinds_for_straight = Dense(hidden_dim, activation='selu', BN=False)(Flatten()(kinds_for_straight))
-
-    kinds_for_ptqf = Dense(hidden_dim, activation='selu', BN=False)(kinds_for_ptqf)
-    kinds_for_ptqf = Dense(hidden_dim, activation='selu', BN=False)(kinds_for_ptqf)
-    colors = Conv1D(1, 1, activation='selu', BN=False)(colors)
-    colors = Dense(hidden_dim, activation='selu', BN=False)(Flatten()(colors))
-
-    # Process board only
-    flop_alone = Dense(hidden_dim, activation='selu', BN=False)(Lambda(lambda x: x[:, 0, :, :])(board))
-    flop_alone = Dense(hidden_dim, activation='selu', BN=False)(flop_alone)
-    turn_alone = Dense(hidden_dim, activation='selu', BN=False)(Lambda(lambda x: x[:, 1, :, :])(board))
-    turn_alone = Dense(hidden_dim, activation='selu', BN=False)(turn_alone)
-    river_alone = Dense(hidden_dim, activation='selu', BN=False)(Lambda(lambda x: x[:, 2, :, :])(board))
-    river_alone = Dense(hidden_dim, activation='selu', BN=False)(river_alone)
-
-    board_alone = Dense(hidden_dim, activation='selu', BN=False)(Flatten()(Concatenate()([flop_alone, turn_alone, river_alone])))
-    board_alone = Dense(hidden_dim, activation='selu', BN=False)(board_alone)
-
-    # Process board and hand together
-    bh = Dense(hidden_dim, activation='selu', BN=False)(Concatenate()([Flatten()(board), Flatten()(hand)]))
-    bh = Dense(hidden_dim, activation='selu', BN=False)(bh)
-    bh = Dense(hidden_dim, activation='selu', BN=False)(Concatenate()([kinds_for_ptqf, kinds_for_straight, colors, board_alone, bh]))
-    bh = Dense(hidden_dim, activation='selu', BN=False)(bh)
-
-    n_combination = 9
-    probabilities_of_each_combination_board_only = Dense(n_combination, activation='softmax', BN=False)(bh)
-    probabilities_of_each_combination_board_hand = Dense(n_combination, activation='softmax', BN=False)(bh)
-    board_value = Dense(1, activation='sigmoid', BN=False)(bh)
-    board_hand_value = Dense(1, activation='sigmoid', BN=False)(bh)
-
-    # Add pot, blind, dealer, stacks
-    pbds = Dense(hidden_dim, activation='selu')(Concatenate()([pot, blinds, dealer, stack, opponent_stack]))
-    pbds = Dense(hidden_dim, activation='selu')(pbds)
+selu = SELU()
+softmax = Softmax()
+sigmoid = Sigmoid()
 
 
-    # Process plays
-    processed_preflop = Dense(hidden_dim, activation='selu')(Flatten()(preflop_plays))
-    processed_flop = Dense(hidden_dim, activation='selu')(Concatenate()([Flatten()(flop_plays), Flatten()(flop_alone)]))
-    processed_turn = Dense(hidden_dim, activation='selu')(Concatenate()([Flatten()(turn_plays), Flatten()(flop_alone), Flatten()(turn_alone)]))
-    processed_river = Dense(hidden_dim, activation='selu')(Concatenate()([Flatten()(river_plays), Flatten()(flop_alone), Flatten()(turn_alone), Flatten()(river_alone)]))
-    # processed_opponent = Dense(hidden_dim, activation='prelu', BN=True)(opponent_model)
-    plays = Dense(hidden_dim, activation='selu')(Add()([processed_preflop,
-                                                        processed_flop,
-                                                        processed_turn,
-                                                        processed_river,
-    #                                                     processed_opponent
-                                                       ]))
-    plays = Dense(hidden_dim, activation='selu')(plays)
+def get_shape(x):
+    try:
+        return x.data.numpy().shape
+    except:
+        return x.numpy().shape
 
-    situation_with_opponent = Dense(hidden_dim, activation='selu')(Concatenate()([plays, pbds, bh]))
-    situation_with_opponent = Dense(hidden_dim, activation='selu')(situation_with_opponent)
-    Q_values = Dense(n_actions, activation=None)(situation_with_opponent)
 
-    Q = Model([hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays], [Q_values, probabilities_of_each_combination_board_only, probabilities_of_each_combination_board_hand, board_value, board_hand_value])
-    Q.compile(Adam(), ['mse', 'categorical_crossentropy', 'categorical_crossentropy', 'binary_crossentropy', 'binary_crossentropy'])
+def flatten(x):
+    shape = get_shape(x)
+    return x.resize(shape[0], int(np.prod(shape[1:])))
 
-    situation_with_opponent_pi = Dense(hidden_dim, activation='selu')(Concatenate()([plays, pbds, bh]))
-    situation_with_opponent_pi = Dense(hidden_dim, activation='selu')(situation_with_opponent_pi)
-    PI_values = Dense(n_actions, activation='softmax')(situation_with_opponent_pi)
-    PI = Model([hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays],
-               [PI_values, probabilities_of_each_combination_board_only, probabilities_of_each_combination_board_hand, board_value, board_hand_value])
-    PI.compile(Adam(), ['categorical_crossentropy', 'categorical_crossentropy', 'categorical_crossentropy', 'binary_crossentropy', 'binary_crossentropy'])
-    return Q, PI
+
+class SharedNetwork(t.nn.Module):
+    def __init__(self, n_actions, hidden_dim):
+        super(SharedNetwork, self).__init__()
+        self.n_actions = n_actions
+        self.hidden_dim = hidden_dim
+
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        hdim = self.hidden_dim
+        n_actions = self.n_actions
+
+        # DETECTING PATTERNS IN THE BOARD AND HAND
+        # Aggregate by suit and kind
+        color_hand = t.sum(hand, 1)
+        color_board = t.sum(t.sum(board, 2), 1)
+        kinds_hand = t.sum(hand, -1)
+        kinds_board = t.sum(t.sum(board, -1), 1)
+
+        colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
+        kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
+
+        # Process board and hand to detect straights using convolutions with kernel size 5, 3, and 3 with dilation
+        kinds_straight = selu(conv(2, 5, 1)((kinds > 0).float()))
+        kinds_straight = t.cat([
+            selu(conv(5, 1, 5, padding=2)(kinds_straight)),
+            selu(conv(5, 1, 3, padding=1)(kinds_straight)),
+            selu(conv(5, 3, 3, dilation=2, padding=2)(kinds_straight))
+        ], 1)
+        kinds_straight = flatten(kinds_straight)
+        kinds_straight = selu(fc(int(np.prod(get_shape(kinds_straight)[1:])), hdim)(kinds_straight))
+
+        # Process board and hand to detect pairs, trips, quads, full houses
+        kinds_ptqf = selu(fc(int(np.prod(get_shape(kinds)[1:])), hdim)(flatten(kinds)))
+        kinds_ptqf = selu(fc(hdim, hdim)(kinds_ptqf))
+
+        # Process board and hand to detect flushes
+        colors = flatten(selu(conv(2, 1, 1)(colors)))
+        colors = selu(fc(4, hdim)(colors))
+
+        # Process the board with FC layers
+        flop_alone = selu(fc(52, hdim)(flatten(board[:, 0, :, :])))
+        flop_alone = selu(fc(hdim, hdim)(flop_alone))
+        turn_alone = selu(fc(52, hdim)(flatten(board[:, 1, :, :])))
+        turn_alone = selu(fc(hdim, hdim)(turn_alone))
+        river_alone = selu(fc(52, hdim)(flatten(board[:, 2, :, :])))
+        river_alone = selu(fc(hdim, hdim)(river_alone))
+        board_alone = selu(fc(3 * hdim, hdim)(t.cat([flop_alone, turn_alone, river_alone], -1)))
+
+        # Process board and hand together with FC layers
+        h = selu(fc(52, hdim)(flatten(hand)))
+        h = selu(fc(hdim, hdim)(h))
+        bh = selu(fc(5 * hdim, hdim)(t.cat([h, board_alone, colors, kinds_ptqf, kinds_straight], -1)))
+        bh = selu(fc(hdim, hdim)(bh))
+
+        # Predict probabilities of having a given hand + hand strength
+        probabilities_of_each_combination_board_only = softmax(fc(hdim, n_actions)(board_alone))
+        probabilities_of_each_combination_board_hand = softmax(fc(hdim, n_actions)(bh))
+        hand_strength = sigmoid(fc(hdim, 1)(bh))
+
+        # PROCESS THE ACTIONS THAT WERE TAKEN IN THE CURRENT EPISODE
+        processed_preflop = selu(fc(5 * 6 * 2, hdim)(flatten(preflop_plays)))
+        processed_flop = selu(fc(5 * 6 * 2 + hdim, hdim)(t.cat([flatten(flop_plays), flop_alone], -1)))
+        processed_turn = selu(fc(5 * 6 * 2 + hdim, hdim)(t.cat([flatten(turn_plays), turn_alone], -1)))
+        processed_river = selu(fc(5 * 6 * 2 + hdim, hdim)(t.cat([flatten(river_plays), river_alone], -1)))
+        plays = selu(fc(hdim, hdim)(processed_preflop + processed_flop + processed_turn + processed_river))
+
+        # add pot, dealer, blinds, dealer, stacks
+        pbds = selu(fc(5, hdim)(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1)))
+
+        # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
+        situation_with_opponent = selu(fc(3 * hdim, hdim)(t.cat([plays, pbds, bh], -1)))
+        situation_with_opponent = selu(fc(hdim, hdim)(situation_with_opponent))
+
+        return situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only
+
+
+class QNetwork(t.nn.Module):
+    def __init__(self, n_actions, hidden_dim, shared_network=None, pi_network=None):
+        super(QNetwork, self).__init__()
+        self.n_actions = n_actions
+        self.hidden_dim = hidden_dim
+        assert not (shared_network is not None and pi_network is not None), "you should provide either pi_network or shared_network"
+        if pi_network is not None:
+            self.shared_network = pi_network.shared_network
+        else:
+            if shared_network is not None:
+                self.shared_network = shared_network
+            else:
+                self.shared_network = SharedNetwork(n_actions, hidden_dim)
+
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        hdim = self.hidden_dim
+        n_actions = self.n_actions
+
+        situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only = self.shared_network.forward(hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
+                                                                                                                                                                         flop_plays, turn_plays, river_plays)
+        q_values = selu(fc(hdim, hdim)(situation_with_opponent))
+        q_values = selu(fc(hdim, hdim)(q_values))
+        q_values = fc(hdim, n_actions)(q_values)
+        return q_values
+
+
+class PiNetwork(t.nn.Module):
+    def __init__(self, n_actions, hidden_dim, shared_network=None, q_network=None):
+        super(PiNetwork, self).__init__()
+        self.n_actions = n_actions
+        self.hidden_dim = hidden_dim
+        assert not (shared_network is not None and q_network is not None), "you should provide either q_network or shared_network"
+        if q_network is not None:
+            self.shared_network = q_network.shared_network
+        else:
+            if shared_network is not None:
+                self.shared_network = shared_network
+            else:
+                self.shared_network = SharedNetwork(n_actions, hidden_dim)
+
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        hdim = self.hidden_dim
+        n_actions = self.n_actions
+
+        situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only = self.shared_network.forward(hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
+                                                                                                                                                                         flop_plays, turn_plays, river_plays)
+        q_values = selu(fc(hdim, hdim)(situation_with_opponent))
+        q_values = selu(fc(hdim, hdim)(q_values))
+        q_values = fc(hdim, n_actions)(q_values)
+        return q_values
