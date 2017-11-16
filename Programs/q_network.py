@@ -141,7 +141,7 @@ class PiNetwork(t.nn.Module):
 
         situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only = self.shared_network.forward(hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
                                                                                                                                                                          flop_plays, turn_plays, river_plays)
-        q_values = selu(fc(hdim, hdim)(situation_with_opponent))
-        q_values = selu(fc(hdim, hdim)(q_values))
-        q_values = fc(hdim, n_actions)(q_values)
-        return q_values
+        pi_values = selu(fc(hdim, hdim)(situation_with_opponent))
+        pi_values = selu(fc(hdim, hdim)(pi_values))
+        pi_values = softmax(fc(hdim, n_actions)(pi_values))
+        return pi_values
