@@ -15,3 +15,5 @@ def main():
         for e, res in zip(l, executor.map(f, l)):
             res += 1
     print(time() - t0)
+
+main()

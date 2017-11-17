@@ -13,3 +13,5 @@ def main():
     for res in map(f, l):
         res += 1
     print(time() - t0)
+
+main()
