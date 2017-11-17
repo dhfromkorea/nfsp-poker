@@ -11,7 +11,7 @@ def f(n):
 
 def main():
     t0 = time()
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=20) as executor:
         for e, res in zip(l, executor.map(f, l)):
             res += 1
     print(time() - t0)
