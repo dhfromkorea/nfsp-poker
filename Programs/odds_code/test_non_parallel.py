@@ -1,7 +1,7 @@
 from time import time
 
 
-l = list(range(int(1e8)))
+l = range(int(1e8))
 
 
 def f(n):
