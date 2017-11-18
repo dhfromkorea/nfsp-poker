@@ -19,7 +19,8 @@ from torch.autograd import Variable
 # define game constants here
 INITIAL_MONEY = 100*BLINDS[0]
 NUM_ROUNDS = 4 # pre, flop, turn, river
-
+NUM_HIDDEN_LAYERS = 10
+NUM_ACTIONS = 14
 
 class Simulator:
     '''
@@ -41,6 +42,8 @@ class Simulator:
         '''
 
         # define battle-level game states here
+
+        Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
         self.players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=self.verbose, name='SB'),
                    Player(1, strategy_RL(Q, True), INITIAL_MONEY, verbose=self.verbose, name='DH')]
         self.new_game = True
@@ -151,7 +154,8 @@ class Simulator:
                                      self.pot, self.dealer, self.actions, BLINDS[1],
                                      self.global_step)
 
-        players[0].remember(self.experience)
+        #self.players[0].remember(self.experience)
+
         # RESET VARIABLES
         self._reset_variables()
         # IS IT THE END OF THE GAME ? (bankruptcy)
@@ -188,7 +192,7 @@ class Simulator:
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
                 
-                players[0].remember(self.experience)
+                #self.players[0].rememember(self.experience)
 
                 # END THE EPISODE
                 self._update_side_pot()
@@ -222,7 +226,7 @@ class Simulator:
             self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
                                          self.pot, self.dealer, self.actions, BLINDS[1],
                                          self.global_step)
-            players[0].remember(self.experience)
+            #self.players[0].remember(self.experience)
 
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
         if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
@@ -280,8 +284,8 @@ class Simulator:
     def _handle_no_split(self):
         if not self.split:
             # if the winner isn't all in, it takes everything
-            if self.players[winner].stack > 0:
-                self.players[winner].stack += pot
+            if self.players[self.winner].stack > 0:
+                self.players[self.winner].stack += pot
 
             # if the winner is all in, it takes only min(what it put in the pot*2, pot)
             else:

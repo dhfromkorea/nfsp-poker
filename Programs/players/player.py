@@ -3,6 +3,7 @@ from experience_replay.experience_replay import ReplayBufferManager
 from game.state import build_state, create_state_variable_batch
 from game.action import create_action_variable_batch
 from game.reward import create_reward_variable_batch
+from game.config import BLINDS
 
 import numpy as np
 
@@ -132,7 +133,6 @@ class NeuralFictiousPlayer:
         # check if chosen_action is invalid
         return chosen_action
 
-    
     def learn(self, episode_i, is_training=True):
         '''
         NSFP algorithm: learn on batch
@@ -152,8 +152,7 @@ class NeuralFictiousPlayer:
             # sync target network periodically
             self._copy_model(self.Q, self.Q_target)
 
-
-   def _learn_rl(self):
+    def _learn_rl(self):
         # sample a minibatch of experiences
         exps, imp_weights, ids = self.buffer_rl.sample(global_step=global_step)
         states = create_state_var(exps[:, 0])
@@ -165,13 +164,11 @@ class NeuralFictiousPlayer:
             td_deltas = self.Q.train(states, actions, targets, imp_weights)
             self.buffer_rl.update(ids, td_deltas)
 
-   def _learn_sl(self):
+    def _learn_sl(self):
        '''
        reservior sampling from M_sl
        '''
        pass
-
-
 
     def remember(self, exp):
         self.buffer_rl.store_experience(exp)

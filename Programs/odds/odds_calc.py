@@ -12,6 +12,7 @@ import holdem_calc as hc
 import holdem_functions as hf
 import itertools
 import numba as nb
+from tqdm import tqdm
 
 #chdir("E:\\CS281AdvancedML\\cs281-final-project\Programs\odds_code")
 symbols = ['2','3','4','5','6','7','8','9','T','J','Q','K','A']
@@ -42,20 +43,17 @@ def generate_combinations(poss_cards, r):
         tot_out.append(combi)
     return tot_out
 
-import time
 def gen_odds():
     req = [5,6]    
     for r in req:
         final_out = {}
         combos = generate_combinations(poss_cards, r) 
         i = 0
-        for combo in combos:       
+        for combo in tqdm(combos):
             board = None
             if r > 2:
                 board = list(combo[2:])
-            start_t = time.time()
             out = hc.run((tuple(combo[0:2]),),int(1e5),False,board,None,False)
-            print(time.time() - start_t)
             final_out = {**final_out, **out}
             i+=1
             #import pdb;pdb.set_trace()
@@ -64,7 +62,5 @@ def gen_odds():
         
         pickle.dump(final_out, open("hand_eval_" + str(r) +".p", 'wb'))
         print("Set of ", r, " cards over and pickled")       
-            
-            
         
 gen_odds()    
