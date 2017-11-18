@@ -11,8 +11,9 @@ from os import chdir, getcwd
 import holdem_calc as hc
 import holdem_functions as hf
 import itertools
+import numba as nb
 
-chdir("E:\\CS281AdvancedML\\cs281-final-project\Programs\odds_code")
+#chdir("E:\\CS281AdvancedML\\cs281-final-project\Programs\odds_code")
 symbols = ['2','3','4','5','6','7','8','9','T','J','Q','K','A']
 suits = ['h','s','c','d']
 poss_cards = []
@@ -41,6 +42,7 @@ def generate_combinations(poss_cards, r):
         tot_out.append(combi)
     return tot_out
 
+import time
 def gen_odds():
     req = [5,6]    
     for r in req:
@@ -51,7 +53,9 @@ def gen_odds():
             board = None
             if r > 2:
                 board = list(combo[2:])
-            out = hc.run((tuple(combo[0:2]),),int(1e6),False,board,None,False)
+            start_t = time.time()
+            out = hc.run((tuple(combo[0:2]),),int(1e5),False,board,None,False)
+            print(time.time() - start_t)
             final_out = {**final_out, **out}
             i+=1
             #import pdb;pdb.set_trace()

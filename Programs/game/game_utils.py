@@ -9,8 +9,8 @@ Setting the blinds, the dealer button, deal cards, processing actions, transform
 """
 from itertools import product
 from sklearn.utils import shuffle
-from config import BLINDS
-from utils import sample_categorical
+from game.config import BLINDS
+from game.utils import sample_categorical
 import numpy as np
 
 

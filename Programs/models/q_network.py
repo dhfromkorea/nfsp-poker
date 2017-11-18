@@ -1,5 +1,7 @@
 import torch as t
 from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
 
 
@@ -64,13 +66,13 @@ class SharedNetwork(t.nn.Module):
         hdim = self.hidden_dim
         n_actions = self.n_actions
 
+
         # DETECTING PATTERNS IN THE BOARD AND HAND
         # Aggregate by suit and kind
         color_hand = t.sum(hand, 1)
         color_board = t.sum(t.sum(board, 2), 1)
         kinds_hand = t.sum(hand, -1)
         kinds_board = t.sum(t.sum(board, -1), 1)
-
         colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
@@ -130,7 +132,8 @@ class SharedNetwork(t.nn.Module):
 
 
 class QNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, shared_network=None, pi_network=None):
+    def __init__(self, n_actions, hidden_dim, shared_network=None, pi_network=None,
+                 learning_rate=0.01):
         super(QNetwork, self).__init__()
         self.n_actions = n_actions
         self.hidden_dim = hidden_dim
@@ -151,12 +154,42 @@ class QNetwork(t.nn.Module):
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
 
+        # loss as MSE
+        self.criterion = nn.MSELoss()
+        # TODO: need model params
+        # need to build model using model.sequential ...
+        # https://github.com/harvard-ml-courses/cs281-demos/blob/master/SoftmaxTorch.ipynb
+        self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
+
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only = self.shared_network.forward(hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
                                                                                                                                                                          flop_plays, turn_plays, river_plays)
         q_values = selu(self.fc27(situation_with_opponent))
         q_values = self.fc28(q_values)
         return q_values, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only
+
+
+    def train(self, states, actions, targets, imp_weights):
+        self.optim.zero_grad()
+        # TODO: support batch forward?
+        # not sure if it's supported as it's written now
+        Q_preds = self.forward(*states)[:, 0].squeeze()
+        loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+        loss.backward()
+        # update weights
+        self.optim.step()
+        return td_deltas
+
+
+    def compute_loss(x, y, imp_weights):
+        '''
+        compute weighted mse loss
+        loss for each sample is scaled by imp_weight
+        we need this to account for bias in replay sampling
+        '''
+        td_deltas = x - y
+        mse = imp_weights.dot(td_deltas.pow(2)).mean()
+        return mse, td_deltas
 
 
 class PiNetwork(t.nn.Module):

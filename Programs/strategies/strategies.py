@@ -3,9 +3,9 @@ Contains strategy functions
 
 They should all have the same signature, but don't always use all this information
 """
-from game_utils import *
-from state_abstraction import build_state
-from utils import softmax
+from game.game_utils import *
+from game.state import build_state
+from game.utils import softmax
 import numpy as np
 
 
@@ -48,9 +48,8 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
     print(player.stack, player.side_pot, opponent_side_pot, possible_actions)
-    state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds)
-    state = [s.reshape(tuple([1] + list(s.shape))) for s in state]
-    Q_values = Q.predict(state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues
+    state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds[1])
+    Q_values = Q.forward(*state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues
     print([float('%.1f' % q) for q in Q_values])
 
     # choose action in a greedy way

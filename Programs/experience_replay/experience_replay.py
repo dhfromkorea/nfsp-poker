@@ -40,6 +40,7 @@ class ReplayBufferManager:
                 experience['r'], experience['next_s'],
                 experience['t'])
 
+
     def store_experience(self, experience):
         # store experience
         # note: timestep is needed to compute importance weights
@@ -94,3 +95,4 @@ class ReplayBufferManager:
             deltas: list of absolute td errors
         '''
         self._buffer.update_priority(exp_ids, deltas)
+
