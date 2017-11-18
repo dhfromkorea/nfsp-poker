@@ -43,9 +43,10 @@ class Simulator:
 
         # define battle-level game states here
 
-        Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=self.verbose, name='SB'),
-                   Player(1, strategy_RL(Q, True), INITIAL_MONEY, verbose=self.verbose, name='DH')]
+        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+        self.players = [Player(0, strategy_RL(Q0, True), INITIAL_MONEY, verbose=self.verbose, name='SB'),
+                   Player(1, strategy_RL(Q1, True), INITIAL_MONEY, verbose=self.verbose, name='DH')]
         self.new_game = True
         self.games = {'n': 0, '#episodes': 0}  # some statistics on the games
         self.global_step = 0

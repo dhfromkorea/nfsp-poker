@@ -1,5 +1,7 @@
-from game_utils import Player, blinds, bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
-from strategies import strategy_limper
+from game.game_utils import blinds, bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
+from players.strategies import strategy_RL, strategy_random
+from players.player import Player, NeuralFictiousPlayer
+from models.q_network import QNetwork, PiNetwork
 from nose.tools import *
 
 
@@ -8,9 +10,12 @@ def get_actions():
 
 
 def get_players():
-    return [Player(0, strategy_limper, 100, verbose=True, name='A'),
-            Player(1, strategy_limper, 100, verbose=True, name='B')]
-
+    NUM_HIDDEN_LAYERS = 10
+    NUM_ACTIONS = 14
+    Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+    players = [Player(0, strategy_RL(Q, True), 100, verbose=True, name='SB'),
+               Player(1, strategy_RL(Q, True), 100, verbose=True, name='DH')]
+    return players
 
 def test_blinds():
     # A BB with less than the BB, B is SB
