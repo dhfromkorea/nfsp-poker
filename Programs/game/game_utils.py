@@ -542,7 +542,7 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
             if max_bet_bucket == 1:
                 return [-1, 14]
             else:
-                assert max_bet_bucket != 14
+                assert max_bet_bucket != 14, (player, actions, b_round, opponent_side_pot)
                 return [-1, 1] + list(range(3, max_bet_bucket+1)) + [14]
         else:  # after preflop, you are SB, it is your first move. You can either check or bet at least the BB
             if player.stack > 2:  # if you have enough money

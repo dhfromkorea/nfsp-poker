@@ -233,7 +233,7 @@ def test_get_max_bet_bucket():
 
     stack = 1
     max_bucket = get_max_bet_bucket(stack)
-    assert max_bucket == 14, max_bucket
+    assert max_bucket == 1, max_bucket
 
     stack = 23
     max_bucket = get_max_bet_bucket(stack)
