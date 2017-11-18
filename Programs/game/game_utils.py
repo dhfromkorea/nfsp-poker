@@ -44,60 +44,6 @@ class Deck:
         self.cards = shuffle(self.cards)
 
 
-class Player:
-    def __init__(self, id, strategy, stack, name=None, verbose=False):
-        self.id = id
-        self.cards = []
-        self.stack = stack
-        self.is_dealer = False
-        self.is_all_in = False
-        self.strategy = strategy
-        self.verbose = verbose
-        self.name = name
-        self.side_pot = 0
-        self.contribution_in_this_pot = 0
-
-    def cash(self, v):
-        self.side_pot = 0
-        self.stack = v
-
-    def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS):
-        # if you are all in you cannot do anything
-        if self.is_all_in:
-            if self.verbose:
-                print(self.name + ' did nothing (all in)')
-            return Action('null')
-        if b_round > 0:
-            try:
-                if self.is_all_in:
-                    if self.verbose:
-                        print(self.name + ' did nothing (all in)')
-                    return Action('null')
-            except IndexError:
-                raise IndexError((b_round, actions))
-
-        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=blinds, verbose=self.verbose)
-        if self.stack - action.value <= 0:
-            self.is_all_in = True
-            if self.verbose:
-                print(self.name + ' goes all in (' + str(self.stack) + ')')
-            return Action('all in', value=self.stack)
-        if self.verbose:
-            print(self.name + ' ' + action.type + ' (' + str(action.value) + ')')
-        return action
-
-    def __repr__(self):
-        if self.name is None:
-            name = str(self.id)
-        else:
-            name = self.name
-        if self.is_dealer:
-            addon = 'D\n' + str(self.stack) + '\n' + str(self.side_pot) + '\n'
-        else:
-            addon = str(self.stack) + '\n' + str(self.side_pot) + '\n'
-        return name + '\n' + addon + (' '.join([str(c) for c in self.cards]))
-
-
 def agreement(actions, betting_round):
     """
     Verify whether two players came to an agreement, meaning that the betting round can end now

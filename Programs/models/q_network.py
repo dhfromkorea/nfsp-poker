@@ -213,6 +213,7 @@ class PiNetwork(t.nn.Module):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
+        # TODO: add softmax loss
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         situation_with_opponent, hand_strength, probabilities_of_each_combination_board_hand, probabilities_of_each_combination_board_only = self.shared_network.forward(hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,

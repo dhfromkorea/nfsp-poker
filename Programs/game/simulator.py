@@ -1,55 +1,44 @@
 from time import time
 from odds.evaluation import *
-from game.game_utils import Deck, Player, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
 from models.q_network import QNetwork, PiNetwork
-from strategies.strategies import strategy_RL, strategy_random
-from game.utils import *
-from game.config import BLINDS
-from experience_replay.experience_replay import ReplayBufferManager
-from game.state import build_state, create_state_variable_batch
-from game.action import create_action_variable_batch
-from game.reward import create_reward_variable_batch
 
+from players.strategies import strategy_RL, strategy_random
+from players.player import Player
+
+from game.utils import *
+from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
+from game.config import BLINDS
+
+
+from game.state import build_state, create_state_variable_batch
+
+
+import torch as t
+from torch.autograd import Variable
 
 # define game constants here
 INITIAL_MONEY = 100*BLINDS[0]
-NUM_HIDDEN_LAYERS = 10
-NUM_ACTIONS = 14
 NUM_ROUNDS = 4 # pre, flop, turn, river
 
-# define some utility functions
-create_state_var = create_state_variable_batch()
-create_action_var = create_action_variable_batch()
-create_reward_var = create_reward_variable_batch()
 
 class Simulator:
+    '''
+    right now, RL algo, Simulator, ER are all tightly coupled
+    this is bad.
+    TODO: decouple them
+
+    right now, players are not using networks to choose actions
+    TODO: couple players with networks
+    '''
     def __init__(self, verbose):
         self.verbose = verbose
         # define other non-game mechanisms
 
-        # for now, we keep networks separate from players
-        # logically they should fall under each player
-        # so we can do player.model.Q, player.model.pi
-        Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        pi = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.Q_1 = Q
-        self.pi_1 = pi
-        # TODO: add 2nd player
-
-        # experience replay
-        # check ReplayBufferManager to see what each hyperparameter means
-        # it is known the performance of PER as measured by
-        # game score with PER / game score without PER
-        # varies a lot according to these hyperparameters
-        # so we will have to tune these
-        conf = {'size': 1000,
-                'learn_start': 100,
-                'partition_num': 10,
-                'total_step': 10000,
-                'batch_size': 10
-                }
-        self.buffer_rl = ReplayBufferManager(target='rl', **conf)
-        #self.buffer_sl = ReplayBufferManager(target='sl', **conf)
+        '''
+        TODO: not ready fully yet
+        self.players = [NeuralFictiousPlayer(pid=0, name='SB'),
+                        NeuralFictiousPlayer(pid=1, name='DH')]
+        '''
 
         # define battle-level game states here
         self.players = [Player(0, strategy_RL(Q, True), INITIAL_MONEY, verbose=self.verbose, name='SB'),
@@ -72,14 +61,15 @@ class Simulator:
                 raise Exception('corrupt game')
 
             self._start_episode()
+            self._train_with_experiences()
 
     def _prepare_new_game(self):
         '''
         if new game -> initialize
         '''
+        # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
         if self.new_game:
             self.games['n'] += 1
-            self.games['#episodes'] += 1
             # buffer_length = buffer_rl.size
             buffer_length = 0
 
@@ -98,8 +88,7 @@ class Simulator:
     def _prepare_new_episode(self):
         '''
         '''
-        # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
-
+        self.games['#episodes'] += 1
         # PAY BLINDS
         self.pot = blinds(self.players, verbose=self.verbose)
         if self.verbose:
@@ -161,12 +150,12 @@ class Simulator:
         self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
                                      self.pot, self.dealer, self.actions, BLINDS[1],
                                      self.global_step)
-        self.store_experience()
+
+        players[0].remember(self.experience)
         # RESET VARIABLES
         self._reset_variables()
         # IS IT THE END OF THE GAME ? (bankruptcy)
         self._set_new_game()
-        self._train_with_experiences()
 
 
     def _play_rounds(self):
@@ -199,7 +188,7 @@ class Simulator:
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
                 
-                self.store_experience()
+                players[0].remember(self.experience)
 
                 # END THE EPISODE
                 self._update_side_pot()
@@ -233,7 +222,7 @@ class Simulator:
             self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
                                          self.pot, self.dealer, self.actions, BLINDS[1],
                                          self.global_step)
-            self.store_experience()
+            players[0].remember(self.experience)
 
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
         if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
@@ -445,45 +434,4 @@ class Simulator:
                      }
         return experience
     
-    def store_experience(self):
-        # this will handle MEMORY[-1]['s''] = state_ automatically
-        self.buffer_rl.store_experience(self.experience)
 
-
-    def _train_with_experiences(self):
-        # @todo: train Q network here
-        # EXPERIENCE REPLAY SAMPLING
-        # UPDATE Q WEIGHTS
-        # UPDATE STRATEGY OF THE ADVERSARY
-        # players[0].strategy = strategy_RL(Q, True)
-        # Watch out, weights of the opponent should be kept frozen. Check that updating those of player doesn't help his
-        # you may find the function Q.get_weights() and Q.set_weights(weights) useful. They are symmetrical of course
-        
-        GAMMA = 0.95
-        is_training = True
-        # TODO: add another network for NSFP and M_sl
-        # turns out M_SL does not use PER (it uses Reservoir Sampling (Vitter, 1985)
-        # I will implement this soon
-        # we start learning after LEARN_START (see params to ReplayBuffer)
-        if global_step > 101:
-            import pdb;pdb.set_trace()
-            # sample a minibatch of experiences
-            exps, imp_weights, ids = buffer_rl.sample(global_step=global_step)
-            # TODO: need to flatten states and actions so keras function
-            # knows how to process them
-            states = create_state_var(exps[:, 0])
-            actions = exps[:, 1]
-            rewards = exps[:, 2]
-            next_states = exps[:, 3]
-            # replay buffer works for storing, sampling and updating
-            # currently the training does not work
-            # we need to first fix all the TODOs noted here
-            if is_training:
-                # Q_pred = Q.predict_on_batch(states)
-                # TODO: use a fixed target network for next state preds
-                import pdb;pdb.set_trace()
-                targets = rewards + GAMMA * Q_fixed.forward(*states)[:, 0].squeeze()
-                td_deltas = Q.train(states, actions, targets, imp_weights)
-                # update priority of the sampled experiences with new td errors
-                buffer_rl.update(ids, td_deltas)
-            # TODO: sync target network with the orignal Q

@@ -12,3 +12,4 @@ def create_action_variable_batch():
     f = np.vectorize(create_action_variable)
     return f
 
+
