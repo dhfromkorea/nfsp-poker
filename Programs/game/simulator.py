@@ -1,18 +1,16 @@
-from time import time
-from odds.evaluation import *
+from odds.evaluation import evaluate_hand
 from models.q_network import QNetwork, PiNetwork
 
 from players.strategies import strategy_RL, strategy_random
 from players.player import Player
 
-from game.utils import *
+#from game.utils import *
 from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
 from game.config import BLINDS
-
-
 from game.state import build_state, create_state_variable_batch
 
-
+from time import time
+import numpy as np
 import torch as t
 from torch.autograd import Variable
 
@@ -32,21 +30,25 @@ class Simulator:
     TODO: couple players with networks
     '''
     def __init__(self, verbose):
+        # define msc.
         self.verbose = verbose
-        # define other non-game mechanisms
+
+        # define other non-game mechanisms like players
 
         '''
         TODO: not ready fully yet
-        self.players = [NeuralFictiousPlayer(pid=0, name='SB'),
-                        NeuralFictiousPlayer(pid=1, name='DH')]
+        self.players = [NeuralFictitiousPlayer(pid=0, name='SB'),
+                        NeuralFictitiousPlayer(pid=1, name='DH')]
         '''
+        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+        self.players = [
+            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
+            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
+        ]
 
         # define battle-level game states here
 
-        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.players = [Player(0, strategy_RL(Q0, True), INITIAL_MONEY, verbose=self.verbose, name='SB'),
-                   Player(1, strategy_RL(Q1, True), INITIAL_MONEY, verbose=self.verbose, name='DH')]
         self.new_game = True
         self.games = {'n': 0, '#episodes': 0}  # some statistics on the games
         self.global_step = 0
@@ -59,34 +61,36 @@ class Simulator:
 
     def start(self):
         while True:
-            self._prepare_new_game()
+            if self.new_game:
+                self._prepare_new_game()
             safe_to_start = self._prepare_new_episode()
             if not safe_to_start:
                 raise Exception('corrupt game')
 
             self._start_episode()
-            self._train_with_experiences()
+            # player learns
+            # for p in players:
+            #     p.learn()
 
     def _prepare_new_game(self):
         '''
         if new game -> initialize
         '''
         # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
-        if self.new_game:
-            self.games['n'] += 1
-            # buffer_length = buffer_rl.size
-            buffer_length = 0
+        self.games['n'] += 1
+        # buffer_length = buffer_rl.size
+        buffer_length = 0
 
-            if self.verbose:
-                t0 = time()
-                print('####################'
-                      'New game (%s) starts.\n'
-                      'Players get cash\n'
-                      'Last game lasted %.1f\n'
-                      'Memory contains %s experiences\n'
-                      '####################' % (str(self.games['n']), time() - t0, buffer_length))
-            self.players[0].cash(INITIAL_MONEY)
-            self.players[1].cash(INITIAL_MONEY)
+        if self.verbose:
+            t0 = time()
+            print('####################'
+                  'New game (%s) starts.\n'
+                  'Players get cash\n'
+                  'Last game lasted %.1f\n'
+                  'Memory contains %s experiences\n'
+                  '####################' % (str(self.games['n']), time() - t0, buffer_length))
+        self.players[0].cash(INITIAL_MONEY)
+        self.players[1].cash(INITIAL_MONEY)
 
 
     def _prepare_new_episode(self):
@@ -94,7 +98,7 @@ class Simulator:
         '''
         self.games['#episodes'] += 1
         # PAY BLINDS
-        self.pot = blinds(self.players, verbose=self.verbose)
+        self.pot = blinds(self.players, self.verbose)
         if self.verbose:
             print('pot: ' + str(self.pot))
 
@@ -145,9 +149,12 @@ class Simulator:
         # WINNERS GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
-        self._handle_no_fold()
-        self._handle_no_split()
-        self._handle_split()
+        if not self.fold_occured:
+            self._handle_no_fold()
+        if self.split:
+            self._handle_split()
+        else:
+            self._handle_no_split()
         
         # store final experience
         # KEEP TRACK OF TRANSITIONS
@@ -214,7 +221,7 @@ class Simulator:
         if self.action.type == 'null':
             self.to_play = 1 - self.to_play
             self.null += 1
-            if null >= 2:
+            if self.null >= 2:
                 self.agreed = True
                 # end the round with agreement
                 return
@@ -223,7 +230,7 @@ class Simulator:
 
         # RL : Store experiences in memory. Just for the agent
         if self.player.id == 0:
-            # KEEP TRACK OF TRANSITIONS
+            # KEEP TRACK OF TRANSITItNS
             self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
                                          self.pot, self.dealer, self.actions, BLINDS[1],
                                          self.global_step)
@@ -240,20 +247,20 @@ class Simulator:
             self._handle_call()
 
         if self.action.type == 'raise':
-            self._handle_raise()
+            value = self._handle_raise()
         else:
-            self.value = self.action.value
-
+            value = self.action.value
         # update pot
-        self._update_pot()
+        self._update_pot(value)
         # DRAMATIC ACTION MONITORING
         self._handle_dramatic_action()
 
         # break if fold
         if self.action.type == 'fold':
-           self._handle_fold()
-           # TODO: break with agreement=True?
-           return
+            self._handle_fold()
+            # TODO: break with agreement=True?
+            self.agreed = True
+            return
 
         # DECIDE WHETHER IT IS THE END OF THE BETTING ROUND OR NOT, AND GIVE LET THE NEXT PLAYER PLAY
         self.agreed = agreement(self.actions, self.b_round)
@@ -269,90 +276,93 @@ class Simulator:
 
     def _handle_split(self):
         # SPLIT: everybody takes back its money
-        self.pot_0, self.pot_1 = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
-        res = 2*INITIAL_MONEY, (self.pot_0, self.pot_1, self.players[0].stack, self.players[1].stack)
-        assert self.pot_0 + self.pot_1 + self.players[0].stack + self.players[1].stack == res
-        self.players[0].stack += self.pot_0
-        self.players[1].stack += self.pot_1
+        # don't do self.pot_0. do pot_o
+        pot_0 = self.players[0].contribution_in_this_pot
+        pot_1 = self.players[1].contribution_in_this_pot
+        pot_stack = (pot_0, pot_1, self.players[0].stack, self.players[1].stack)
+        msg = 'split was not handled correctly:{}!={}'.format(pot_stack, 2*INITIAL_MONEY)
+        assert np.sum(pot_stack) == 2*INITIAL_MONEY, msg
+        self.players[0].stack += pot_0
+        self.players[1].stack += pot_1
         self.players[0].contribution_in_this_pot = 0
         self.players[1].contribution_in_this_pot = 0
 
         # RL : update the memory with the amount you won
-        self.experience['final_reward']= self.pot_0
+        self.experience['final_reward']= pot_0
         self.split = False
 
 
     def _handle_no_split(self):
-        if not self.split:
-            # if the winner isn't all in, it takes everything
-            if self.players[self.winner].stack > 0:
-                self.players[self.winner].stack += pot
+        # if the winner isn't all in, it takes everything
+        if self.players[self.winner].stack > 0:
+            self.players[self.winner].stack += self.pot
 
-            # if the winner is all in, it takes only min(what it put in the pot*2, pot)
+        # if the winner is all in, it takes only min(what it put in the pot*2, pot)
+        else:
+            s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
+            if s_pot[self.winner]*2 > self.pot:
+                self.players[self.winner].stack += self.pot
             else:
-                self.s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
-                if self.s_pot[self.winner]*2 > self.pot:
-                    self.players[self.winner].stack += self.pot
-                else:
-                    self.players[self.winner].stack += 2*self.s_pot[self.winner]
-                    self.players[1 - self.winner].stack += self.pot - 2*self.s_pot[self.winner]
+                self.players[self.winner].stack += 2 * s_pot[self.winner]
+                self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
 
-            # RL
-            # If the agent won, gives it the chips and reminds him that it won the chips
-            if self.winner == 0:
-                # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-                if not self.buffer_rl.is_last_step_buffer_empty:
-                    self.experience['final_reward']= self.pot
+        # RL
+        # If the agent won, gives it the chips and reminds him that it won the chips
+        if self.winner == 0:
+            # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
+            if not self.players[0].memory_rl.is_last_step_buffer_empty:
+                self.experience['final_reward'] = self.pot
 
 
     def _handle_no_fold(self):
-        if not self.fold_occured:
-            # compute the value of hands
-            self.hand_1 = evaluate_hand(self.players[1].cards + self.board)
-            self.hand_0 = evaluate_hand(self.players[0].cards + self.board)
+        # compute the value of hands
+        self.hand_1 = evaluate_hand(self.players[1].cards + self.board)
+        self.hand_0 = evaluate_hand(self.players[0].cards + self.board)
 
-            # decide whether to split or not
-            if self.hand_1[1] == self.hand_0[1]:
-                if self.hand_1[2] == self.hand_0[2]:
-                    self.split = True
-                else:
-                    for self.card_0, self.card_1 in zip(self.hand_0[2], self.hand_1[2]):
-                        if self.card_0 < self.card_1:
-                            self.winner = 1
-                            break
-                        elif self.card_0 == self.card_1:
-                            continue
-                        else:
-                            self.winner = 0
-                            break
-
-            # if no split, somebody won
+        # decide whether to split or not
+        if self.hand_1[1] == self.hand_0[1]:
+            if self.hand_1[2] == self.hand_0[2]:
+                self.split = True
             else:
-                self.winner = int(self.hand_1[1] > self.hand_0[1])
+                for self.card_0, self.card_1 in zip(self.hand_0[2], self.hand_1[2]):
+                    if self.card_0 < self.card_1:
+                        self.winner = 1
+                        break
+                    elif self.card_0 == self.card_1:
+                        continue
+                    else:
+                        self.winner = 0
+                        break
 
-            if self.verbose:
-                if not self.split:
-                    print(self.players[0].name + ' cards : ' + str(self.players[0].cards) 
-                          + ' and score: ' + str(self.hand_0[0]))
-                    print(self.players[1].name + ' cards : ' + str(self.players[1].cards) 
-                          + ' and score: ' + str(self.hand_1[0]))
-                    print(self.players[winner].name + ' wins')
-                else:
-                    print(self.players[0].name + ' cards : ' + str(self.players[0].cards) +
-                          ' and score: ' + str(self.hand_0[0]))
-                    print(self.players[1].name + ' cards : ' + str(self.players[1].cards) +
-                          ' and score: ' + str(self.hand_1[0]))
-                    print('Pot split')
+        # if no split, somebody won
+        else:
+            self.winner = int(self.hand_1[1] > self.hand_0[1])
+
+        if self.verbose:
+            if not self.split:
+                print(self.players[0].name + ' cards : ' + str(self.players[0].cards) 
+                      + ' and score: ' + str(self.hand_0[0]))
+                print(self.players[1].name + ' cards : ' + str(self.players[1].cards) 
+                      + ' and score: ' + str(self.hand_1[0]))
+                print(self.players[self.winner].name + ' wins')
+            else:
+                print(self.players[0].name + ' cards : ' + str(self.players[0].cards) +
+                      ' and score: ' + str(self.hand_0[0]))
+                print(self.players[1].name + ' cards : ' + str(self.players[1].cards) +
+                      ' and score: ' + str(self.hand_1[0]))
+                print('Pot split')
 
 
     def _handle_raise(self):
-        self.value = self.action.value + self.players[1-self.to_play].side_pot - self.player.side_pot - (len(self.actions[0][self.player.id])==0)*(self.b_round==0)*BLINDS[1-self.player.is_dealer]
+        value = self.action.value + self.players[1-self.to_play].side_pot - self.player.side_pot - (len(self.actions[0][self.player.id])==0)*(self.b_round==0)*BLINDS[1-self.player.is_dealer]
+        return value
 
     def _reset_variables(self):
         # RESET VARIABLES
+        self.winner = None
         self.pot = 0
         self.dealer = 1 - self.dealer
-        self.players[dealer].is_dealer = True
+        self.players[self.dealer].is_dealer = True
         self.players[1 - self.dealer].is_dealer = False
         self.players[0].cards = []
         self.players[1].cards = []
@@ -363,27 +373,28 @@ class Simulator:
 
     def _handle_call(self):
         # if you call, it must be exactly the value of the previous bet or raise or all-in
+        side_pot = (self.action.value, self.player.side_pot)
+        msg = 'call was not handled correctly: {}'.format(side_pot)
         if self.b_round > 0:
-            res = self.players[1-player.id].side_pot, (self.action.value, self.actions[self.b_round][1-self.player.id][-1].value)
-            assert self.action.value + self.player.side_pot == res
+            assert np.sum(side_pot) == self.players[1-self.player.id].side_pot, msg
         else:
             if len(self.actions[self.b_round][1-self.player.id]) == 0:
                 assert self.action.value == 1
             else:
-                res =  self.players[1-self.player.id].side_pot, (self.actions, self.action.value, self.actions[self.b_round][1 - self.player.id][-1].value)
-                assert self.action.value + self.player.side_pot == res
+                side_pot = (self.action.value, self.player.side_pot)
+                assert np.sum(side_pot) == self.players[1-self.player.id].side_pot, msg
 
 
     def _handle_fold(self):
         self.fold_occured = True
-        self.players[0].contribution_in_this_pot = self.players[0].side_pot*1
-        self.players[1].contribution_in_this_pot = self.players[1].side_pot*1
+        self.players[0].contribution_in_this_pot = self.players[0].side_pot
+        self.players[1].contribution_in_this_pot = self.players[1].side_pot
         self.players[0].side_pot = 0
         self.players[1].side_pot = 0
         self.winner = 1 - self.to_play
         if self.verbose:
             print(self.players[self.winner].name + ' wins because its opponent folded')
-        # break the episode
+       
 
 
     def _handle_dramatic_action(self):
@@ -405,11 +416,11 @@ class Simulator:
         self.players[1].side_pot = 0
 
 
-    def _update_pot(self):
-        self.player.side_pot += self.value
-        self.player.stack -= self.value
-        assert self.player.stack >= 0, (self.player.stack, self.actions, self.action, self.value)
-        self.pot += self.value
+    def _update_pot(self, value):
+        self.player.side_pot += value
+        self.player.stack -= value
+        assert self.player.stack >= 0, (self.player.stack, self.actions, self.action, value)
+        self.pot += value
         assert self.pot + self.players[0].stack + self.players[1].stack == 2*INITIAL_MONEY, (self.players, self.actions, self.action)
         assert not ((self.player.stack == 0) and self.action.type != 'all in'), (self.actions, self.action, self.player)
         self.actions[self.b_round][self.player.id].append(self.action)

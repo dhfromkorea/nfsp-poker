@@ -1,5 +1,5 @@
 from experience_replay.experience_replay import ReplayBufferManager
-
+from game.game_utils import Action
 from game.state import build_state, create_state_variable_batch
 from game.action import create_action_variable_batch
 from game.reward import create_reward_variable_batch
@@ -35,6 +35,15 @@ class Player:
         self.name = name
         self.side_pot = 0
         self.contribution_in_this_pot = 0
+        self.player_type = 'default'
+        # experience replay
+        rl_conf = {'size': 1000,
+                'learn_start': 100,
+                'partition_num': 10,
+                'total_step': 10000,
+                'batch_size': 10
+                }
+        self.memory_rl = ReplayBufferManager(target='rl', **rl_conf)
 
     def cash(self, v):
         self.side_pot = 0
@@ -78,7 +87,7 @@ class Player:
 
 
 
-class NeuralFictiousPlayer:
+class NeuralFictitiousPlayer:
     '''
     NSFP
     '''
@@ -93,6 +102,7 @@ class NeuralFictiousPlayer:
         self.target_update = TARGET_NETWORK_UPDATE_PERIOD
         self.epsilon = EPSILON
         self.pi = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+        self.player_type = 'nfp'
 
         # experience replay
         rl_conf = {'size': 1000,
@@ -101,17 +111,18 @@ class NeuralFictiousPlayer:
                 'total_step': 10000,
                 'batch_size': 10
                 }
-        self.buffer_rl = ReplayBufferManager(target='rl', **rl_conf)
+        self.memory_rl = ReplayBufferManager(target='rl', **rl_conf)
         sl_conf = {'size': 1000,
                 'learn_start': 100,
                 'partition_num': 10,
                 'total_step': 10000,
                 'batch_size': 10
                 }
-        self.buffer_sl = ReplayBufferManager(target='sl', **sl_conf)
+        self.memory_sl = ReplayBufferManager(target='sl', **sl_conf)
 
 
     def act(self, state):
+
         '''
         TODO: check the output action dimension
         '''
@@ -154,7 +165,7 @@ class NeuralFictiousPlayer:
 
     def _learn_rl(self):
         # sample a minibatch of experiences
-        exps, imp_weights, ids = self.buffer_rl.sample(global_step=global_step)
+        exps, imp_weights, ids = self.memory_rl.sample(global_step=global_step)
         states = create_state_var(exps[:, 0])
         actions = create_action_var(exps[:, 1])
         rewards = create_reward_var(exps[:, 2])
@@ -162,7 +173,7 @@ class NeuralFictiousPlayer:
         if is_training:
             targets = rewards + GAMMA * self.Q_target.forward(*next_states)[:, 0].squeeze()
             td_deltas = self.Q.train(states, actions, targets, imp_weights)
-            self.buffer_rl.update(ids, td_deltas)
+            self.memory_rl.update(ids, td_deltas)
 
     def _learn_sl(self):
        '''
@@ -171,15 +182,15 @@ class NeuralFictiousPlayer:
        pass
 
     def remember(self, exp):
-        self.buffer_rl.store_experience(exp)
+        self.memory_rl.store_experience(exp)
         # if action was chosen by e-greedy policy
         # exp should be just (s,a)
-        #self.buffer_sl.store_experience(exp)
+        #self.memory_sl.store_experience(exp)
 
 
     def _copy_model(self, from_model, to_model):
         '''
         create a fixed target network
-        copy weights and buffers
+        copy weights and memorys
         '''
         to_model.load_state_dict(from_model.state_dict())

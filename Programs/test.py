@@ -1,6 +1,6 @@
 from game.game_utils import blinds, bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
 from players.strategies import strategy_RL, strategy_random
-from players.player import Player, NeuralFictiousPlayer
+from players.player import Player, NeuralFictitiousPlayer
 from models.q_network import QNetwork, PiNetwork
 from nose.tools import *
 
