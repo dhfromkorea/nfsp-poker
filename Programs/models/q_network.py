@@ -136,10 +136,11 @@ class SharedNetwork(t.nn.Module):
 
 
 class QNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, shared_network=None, pi_network=None,
+    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, pi_network=None,
                  learning_rate=0.01):
         super(QNetwork, self).__init__()
         self.n_actions = n_actions
+        self.featurizer = featurizer
         self.hidden_dim = hidden_dim
         hdim = self.hidden_dim
 
@@ -163,7 +164,8 @@ class QNetwork(t.nn.Module):
         # https://github.com/harvard-ml-courses/cs281-demos/blob/master/SoftmaxTorch.ipynb
         self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
 
-    def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        HS, proba_board_hand, proba_board, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(self.fc27(situation_with_opponent))
         q_values = self.fc28(q_values)
@@ -192,9 +194,10 @@ class QNetwork(t.nn.Module):
 
 
 class PiNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, shared_network=None, q_network=None):
+    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
+        self.featurizer = featurizer
         self.hidden_dim = hidden_dim
         hdim = self.hidden_dim
 
@@ -212,9 +215,10 @@ class PiNetwork(t.nn.Module):
         self.fc28 = fc(hdim, n_actions)
         # TODO: add softmax loss
 
-    def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
-        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
-                                                                                                                                                                         flop_plays, turn_plays, river_plays)
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        HS, proba_board_hand, proba_board, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+
         pi_values = selu(self.fc27(situation_with_opponent))
         pi_values = softmax(self.fc28(pi_values))
         return pi_values
