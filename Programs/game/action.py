@@ -2,6 +2,7 @@ import numpy as np
 import torch as t
 from torch.autograd import Variable
 
+
 def create_action_variable(action):
     # TODO: check if dtype should be handled individually
     dtype = t.FloatTensor
