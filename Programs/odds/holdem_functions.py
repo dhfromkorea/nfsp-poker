@@ -8,9 +8,6 @@ hand_rankings = ("High Card", "Pair", "Two Pair", "Three of a Kind",
 suit_value_dict = {"T": 10, "J": 11, "Q": 12, "K": 13, "A": 14}
 
 import random
-import numba as nb
-
-
 for num in range(2, 10):
     suit_value_dict[str(num)] = num
 

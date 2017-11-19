@@ -1,8 +1,6 @@
 import time
 import holdem_functions
 import holdem_argparser
-import numba as nb
-
 
 def main():
     hole_cards, num, exact, board, file_name = holdem_argparser.parse_args()
@@ -28,7 +26,6 @@ def run(hole_cards, num, exact, board, file_name, verbose, pad_opp = True):
         #import pdb; pdb.set_trace()
         deck = holdem_functions.generate_deck(hole_cards, board)
         return run_simulation(hole_cards, num, exact, board, deck, verbose,pad_opp = pad_opp)
-
 
 def run_simulation(hole_cards, num, exact, given_board, deck, verbose, pad_opp=True):
     num_players = len(hole_cards)
