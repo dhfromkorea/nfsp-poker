@@ -23,19 +23,20 @@ def flatten(x):
 
 
 class CardFeaturizer1(t.nn.Module):
-    def __init__(self, hdim):
+    def __init__(self, hdim, n_filters):
         super(CardFeaturizer1, self).__init__()
         self.hdim = hdim
-        self.conv1 = conv(2, 5, 1)
-        self.conv2 = conv(5, 1, 5, padding=2)
-        self.conv3 = conv(5, 1, 3, padding=1)
-        self.conv4 = conv(5, 3, 3, dilation=2, padding=2)
-        self.conv5 = conv(2, 1, 1)
 
-        self.fc1 = fc(13 * 5, hdim)
+        self.conv1 = conv(2, n_filters, 1)
+        self.conv2 = conv(n_filters, n_filters, 5, padding=2)
+        self.conv3 = conv(n_filters, n_filters, 3, padding=1)
+        self.conv4 = conv(n_filters, n_filters, 3, dilation=2, padding=2)
+        self.conv5 = conv(2, n_filters, 1)
+
+        self.fc1 = fc(13 * n_filters * 3, hdim)
         self.fc2 = fc(13 * 2, hdim)
         self.fc3 = fc(hdim, hdim)
-        self.fc4 = fc(4, hdim)
+        self.fc4 = fc(4 * n_filters, hdim)
         self.fc5 = fc(52, hdim)
         self.fc6 = fc(hdim, hdim)
         self.fc7 = fc(52, hdim)
