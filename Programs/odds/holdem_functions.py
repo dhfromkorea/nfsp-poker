@@ -1,4 +1,5 @@
 # Constants
+import pdb
 suit_index_dict = {"s": 0, "c": 1, "h": 2, "d": 3}
 reverse_suit_index = ("s", "c", "h", "d")
 val_string = "AKQJT98765432"
@@ -273,6 +274,7 @@ def return_results(hole_cards, winner_list, result_histograms,pad_opp=True, boar
     float_iterations = float(sum(winner_list))
     results = {}
     for index, hole_card in enumerate(hole_cards):
+        #pdb.set_trace()
         results["player"+ str(index+1) + "winprob"] = float(winner_list[index + 1]) / float_iterations
     cards = []
     for card in hole_cards[0]:
@@ -329,9 +331,11 @@ def find_winner(generate_boards, deck, hole_cards, num, board_length,
         suit_histogram, histogram, max_suit = (
             preprocess_board(board))
         for index, hole_card in enumerate(hole_cards):
+            #pdb.set_trace()
             result_list[index] = detect_hand(hole_card, board, suit_histogram,
                                              histogram, max_suit)
         # Find the winner of the hand and tabulate results
+        #pdb.set_trace()
         winner_index = compare_hands(result_list)
         winner_list[winner_index] += 1
         # Increment what hand each player made

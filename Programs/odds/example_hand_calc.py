@@ -16,18 +16,18 @@ import time
 #card_2 = hf.Card('4h')
 #combo = (card_1,card_2)
 #out = hc.run((tuple(combo),),int(1e4),False,None,None,False)
-#end_time = time.time()
+#end_time = time.time(
 #print(out)
 #print("Time diff is", end_time-start_time)
 
 #Example for calculating hand strength including the board cards.
 
-card_1 = hf.Card('3s')
-card_2 = hf.Card('4h')
+card_1 = hf.Card('6d')
+card_2 = hf.Card('Kd')
 combo = (card_1,card_2)
-board = [hf.Card('6c'), hf.Card('7s'), hf.Card('9d'), hf.Card('2d')]
+board = [hf.Card('Js'), hf.Card('Qs'), hf.Card('Ks')]
 start_time = time.time()
-out = hc.run((tuple(combo),),int(1e3),False, board,None,False)
+out = hc.run((tuple(combo),),int(1e6),True, board,None,False)
 end_time = time.time()
 print(out)
 print("Time diff is", end_time-start_time)
