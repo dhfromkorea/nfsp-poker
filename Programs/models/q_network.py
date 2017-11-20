@@ -47,10 +47,10 @@ class CardFeaturizer1(t.nn.Module):
         self.fc13 = fc(hdim, hdim)
         self.fc14 = fc(5 * hdim, hdim)
         self.fc15 = fc(hdim, hdim)
-        #         self.fc17 = fc(hdim, 9)
+        # self.fc17 = fc(hdim, 9)
         self.fc18 = fc(hdim, 1)
 
-    def forward(self, hand, board):
+    def forward(self, hand, board, ret_feat=False):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
@@ -86,7 +86,7 @@ class CardFeaturizer1(t.nn.Module):
         flop_alone = selu(dropout(self.fc6(flop_alone)))
         turn_alone = selu(dropout(self.fc7(flatten(t.sum(board[:, :2, :, :], 1)))))
         turn_alone = selu(dropout(self.fc8(turn_alone)))
-        river_alone = selu(dropout(self.fc9(flatten(t.sum(board[:, :3, :, :],1)))))
+        river_alone = selu(dropout(self.fc9(flatten(t.sum(board[:, :3, :, :], 1)))))
         river_alone = selu(dropout(self.fc10(river_alone)))
         board_alone = selu(dropout(self.fc11(t.cat([flop_alone, turn_alone, river_alone], -1))))
 
@@ -99,7 +99,10 @@ class CardFeaturizer1(t.nn.Module):
         # Predict probabilities of having a given hand + hand strength
         #         probabilities_of_each_combination = softmax(self.fc17(bh))
         hand_strength = sigmoid(self.fc18(bh))
-        return hand_strength
+        if not ret_feat:
+            return hand_strength
+        else:
+            return hand_strength, bh
 
 
 class CardFeaturizer2(t.nn.Module):
@@ -210,13 +213,13 @@ class CardFeaturizer3(t.nn.Module):
         self.hdim = hdim
 
         self.fc1 = fc(13 * 4, hdim)
-        self.fc1_bn = BN(hdim)
+        # self.fc1_bn = BN(hdim)
         self.fc2 = fc(hdim, hdim)
-        self.fc2_bn = BN(hdim)
+        # self.fc2_bn = BN(hdim)
         self.fc3 = fc(hdim, hdim)
-        self.fc3_bn = BN(hdim)
+        # self.fc3_bn = BN(hdim)
         self.fc4 = fc(hdim, hdim)
-        self.fc4_bn = BN(hdim)
+        # self.fc4_bn = BN(hdim)
         self.fc5 = fc(hdim, 1)
 
     def forward(self, hand, board, ret_features=False):
@@ -224,10 +227,15 @@ class CardFeaturizer3(t.nn.Module):
 
         hand_shape = get_shape(hand)[0]
         cards = flatten(hand + t.sum(board, 1))
-        h = PReLU(hdim)(self.fc1_bn(self.fc1(cards)))
-        h = PReLU(hdim)(self.fc2_bn(self.fc2(h)))
-        h = PReLU(hdim)(self.fc3_bn(self.fc3(h)))
-        h = PReLU(hdim)(self.fc4_bn(self.fc4(h)))
+        # h = PReLU(hdim)(self.fc1_bn(self.fc1(cards)))
+        # h = PReLU(hdim)(self.fc2_bn(self.fc2(h)))
+        # h = PReLU(hdim)(self.fc3_bn(self.fc3(h)))
+        # h = PReLU(hdim)(self.fc4_bn(self.fc4(h)))
+        h = PReLU(hdim)(self.fc1(cards))
+        h = PReLU(hdim)(self.fc2(h))
+        h = PReLU(hdim)(self.fc3(h))
+        h = PReLU(hdim)(self.fc4(h))
+
         hand_strength = sigmoid(self.fc5(h))
 
         return hand_strength
