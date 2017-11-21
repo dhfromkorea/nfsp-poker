@@ -316,8 +316,8 @@ def find_winner(generate_boards, deck, hole_cards, num, board_length,
     #import pdb; pdb.set_trace()
     if pad_opp:
         result_list = [None]*2
-        opp_cards = random.sample(deck,2)
-        hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
+        #opp_cards = random.sample(deck,2)
+        #hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
         
     for remaining_board in generate_boards(deck, num, board_length):
         # Generate a new board
@@ -326,12 +326,17 @@ def find_winner(generate_boards, deck, hole_cards, num, board_length,
             board.extend(remaining_board)
         else:
             board = remaining_board
+            
+        if pad_opp:
+            opp_cards = random.sample(deck,2)
+            hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
         # Find the best possible poker hand given the created board and the
         # hole cards and save them in the results data structures
         suit_histogram, histogram, max_suit = (
             preprocess_board(board))
         for index, hole_card in enumerate(hole_cards):
             #pdb.set_trace()
+
             result_list[index] = detect_hand(hole_card, board, suit_histogram,
                                              histogram, max_suit)
         # Find the winner of the hand and tabulate results
