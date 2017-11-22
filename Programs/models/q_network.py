@@ -67,7 +67,7 @@ class CardFeaturizer1(t.nn.Module):
             shape = convv.weight.data.numpy().shape
             convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
 
-    def forward(self, hand, board, ret_feat=False):
+    def forward(self, hand, board, return_features=False):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
@@ -110,16 +110,16 @@ class CardFeaturizer1(t.nn.Module):
         # Process board and hand together with FC layers
         h = selu(dropout(self.fc12(flatten(hand))))
         h = selu(dropout(self.fc13(h)))
-        bh = selu(dropout(self.fc14(t.cat([h, board_alone, colors, kinds_ptqf, kinds_straight], -1))))
-        bh = selu(dropout(self.fc15(bh)))
+        cards_features = selu(dropout(self.fc14(t.cat([h, board_alone, colors, kinds_ptqf, kinds_straight], -1))))
+        cards_features = selu(dropout(self.fc15(cards_features)))
 
         # Predict probabilities of having a given hand + hand strength
         #         probabilities_of_each_combination = softmax(self.fc17(bh))
-        hand_strength = sigmoid(self.fc18(bh))
-        if not ret_feat:
+        hand_strength = sigmoid(self.fc18(cards_features))
+        if not return_features:
             return hand_strength
         else:
-            return hand_strength, bh
+            return hand_strength, cards_features#, flop_alone, turn_alone, river_alone
 
 
 class CardFeaturizer11(t.nn.Module):
@@ -448,7 +448,8 @@ class QNetwork(t.nn.Module):
         self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
-        HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(self.fc27(situation_with_opponent))
         q_values = self.fc28(q_values)
