@@ -23,6 +23,10 @@ def flatten(x):
 
 
 class CardFeaturizer1(t.nn.Module):
+    """
+    The one i got results with
+    SELU + AlphaDropout + smart initialization
+    """
     def __init__(self, hdim, n_filters):
         super(CardFeaturizer1, self).__init__()
         self.hdim = hdim
@@ -50,6 +54,18 @@ class CardFeaturizer1(t.nn.Module):
         self.fc15 = fc(hdim, hdim)
         # self.fc17 = fc(hdim, 9)
         self.fc18 = fc(hdim, 1)
+
+        for i in range(1, 19):
+            if i == 16 or i == 17:
+                continue
+            fcc = getattr(self, 'fc' + str(i))
+            shape = fcc.weight.data.numpy().shape
+            fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
+
+        for i in range(1, 6):
+            convv = getattr(self, 'conv' + str(i))
+            shape = convv.weight.data.numpy().shape
+            convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
 
     def forward(self, hand, board, ret_feat=False):
         dropout = AlphaDropout(.1)
@@ -106,7 +122,107 @@ class CardFeaturizer1(t.nn.Module):
             return hand_strength, bh
 
 
+class CardFeaturizer11(t.nn.Module):
+    def __init__(self, hdim, n_filters):
+        super(CardFeaturizer11, self).__init__()
+        self.hdim = hdim
+
+        self.conv1 = conv(2, n_filters, 1)
+        self.conv2 = conv(n_filters, n_filters, 5, padding=2)
+        self.conv3 = conv(n_filters, n_filters, 3, padding=1)
+        self.conv4 = conv(n_filters, n_filters, 3, dilation=2, padding=2)
+        self.conv5 = conv(2, n_filters, 1)
+
+        self.fc1 = fc(13 * n_filters * 3, hdim)
+        self.fc2 = fc(13 * 2, hdim)
+        self.fc3 = fc(hdim, hdim)
+        self.fc4 = fc(4 * n_filters, hdim)
+        self.fc5 = fc(52, hdim)
+        self.fc6 = fc(hdim, hdim)
+        self.fc7 = fc(52, hdim)
+        self.fc8 = fc(hdim, hdim)
+        self.fc9 = fc(52, hdim)
+        self.fc10 = fc(hdim, hdim)
+        self.fc11 = fc(3 * hdim, hdim)
+        self.fc12 = fc(52, hdim)
+        self.fc13 = fc(hdim, hdim)
+        self.fc14 = fc(5 * hdim, hdim)
+        self.fc15 = fc(hdim, hdim)
+        self.fc17 = fc(hdim, 9)
+        self.fc18 = fc(hdim, 1)
+
+        for i in range(1, 19):
+            if i == 16:
+                continue
+            fcc = getattr(self, 'fc' + str(i))
+            shape = fcc.weight.data.numpy().shape
+            fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
+
+        for i in range(1, 6):
+            convv = getattr(self, 'conv' + str(i))
+            shape = convv.weight.data.numpy().shape
+            convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
+
+    def forward(self, hand, board, ret_feat=False):
+        dropout = AlphaDropout(.1)
+        dropout.training = self.training
+
+        # DETECTING PATTERNS IN THE BOARD AND HAND
+        # Aggregate by suit and kind
+        color_hand = t.sum(hand, 1)
+        color_board = t.sum(t.sum(board, 2), 1)
+        kinds_hand = t.sum(hand, -1)
+        kinds_board = t.sum(t.sum(board, -1), 1)
+        colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
+        kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
+
+        # Process board and hand to detect straights using convolutions with kernel size 5, 3, and 3 with dilation
+        kinds_straight = selu(dropout(self.conv1((kinds > 0).float())))
+        kinds_straight = t.cat([
+            selu(dropout(self.conv2(kinds_straight))),
+            selu(dropout(self.conv3(kinds_straight))),
+            selu(dropout(self.conv4(kinds_straight)))
+        ], 1)
+        kinds_straight = flatten(kinds_straight)
+        kinds_straight = selu(dropout(self.fc1(kinds_straight)))
+
+        # Process board and hand to detect pairs, trips, quads, full houses
+        kinds_ptqf = selu(dropout(self.fc2(flatten(kinds))))
+        kinds_ptqf = selu(dropout(self.fc3(kinds_ptqf)))
+
+        # Process board and hand to detect flushes
+        colors = flatten(selu(dropout(self.conv5(colors))))
+        colors = selu(dropout(self.fc4(colors)))
+
+        # Process the board with FC layers
+        flop_alone = selu(dropout(self.fc5(flatten(board[:, 0, :, :]))))
+        flop_alone = selu(dropout(self.fc6(flop_alone)))
+        turn_alone = selu(dropout(self.fc7(flatten(t.sum(board[:, :2, :, :], 1)))))
+        turn_alone = selu(dropout(self.fc8(turn_alone)))
+        river_alone = selu(dropout(self.fc9(flatten(t.sum(board[:, :3, :, :], 1)))))
+        river_alone = selu(dropout(self.fc10(river_alone)))
+        board_alone = selu(dropout(self.fc11(t.cat([flop_alone, turn_alone, river_alone], -1))))
+
+        # Process board and hand together with FC layers
+        h = selu(dropout(self.fc12(flatten(hand))))
+        h = selu(dropout(self.fc13(h)))
+        bh = selu(dropout(self.fc14(t.cat([h, board_alone, colors, kinds_ptqf, kinds_straight], -1))))
+        bh = selu(dropout(self.fc15(bh)))
+
+        # Predict probabilities of having a given hand + hand strength
+        probabilities_of_each_combination = softmax(self.fc17(bh))
+        hand_strength = sigmoid(self.fc18(bh))
+        if not ret_feat:
+            return hand_strength, probabilities_of_each_combination
+        else:
+            return hand_strength, probabilities_of_each_combination, bh
+
+
 class CardFeaturizer2(t.nn.Module):
+    """
+    BN
+    doesnt work yet
+    """
     def __init__(self, hdim):
         super(CardFeaturizer2, self).__init__()
         self.hdim = hdim
@@ -209,6 +325,9 @@ class CardFeaturizer2(t.nn.Module):
 
 
 class CardFeaturizer3(t.nn.Module):
+    """
+    FC only
+    """
     def __init__(self, hdim):
         super(CardFeaturizer3, self).__init__()
         self.hdim = hdim
