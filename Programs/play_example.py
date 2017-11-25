@@ -10,7 +10,10 @@ actions per betting round
 """
 
 from game.simulator import Simulator
+from models.featurizer import FeaturizerManager
 
 if __name__ == '__main__':
-    simulator = Simulator(verbose=True)
-    simulator.start()
+    #simulator = Simulator(verbose=True)
+    #simulator.start()
+    fm = FeaturizerManager(50, 10)
+    fm.train()

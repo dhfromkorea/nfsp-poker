@@ -1,7 +1,16 @@
+# any large pickled files
+**/*.p
+**/*.pkl
+**/*.zip
 
+# jupyernotebook stuff
 .ipynb_checkpoints
+
+# dh personal file
+**/to.do
 # Byte-compiled / optimized / DLL files
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 

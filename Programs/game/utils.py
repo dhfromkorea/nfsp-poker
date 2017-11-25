@@ -39,3 +39,8 @@ def variable(array, requires_grad=False, to_float=True, cuda=False):
         return v.float()
     else:
         return v
+
+
+def moving_avg(x, window=50):
+    return [np.mean(x[k:k+window]) for k in range(len(x)-window)]
+
