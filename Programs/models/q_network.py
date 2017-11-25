@@ -67,7 +67,7 @@ class CardFeaturizer1(t.nn.Module):
             shape = convv.weight.data.numpy().shape
             convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
 
-    def forward(self, hand, board, return_features=False):
+    def forward(self, hand, board):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
@@ -116,10 +116,7 @@ class CardFeaturizer1(t.nn.Module):
         # Predict probabilities of having a given hand + hand strength
         #         probabilities_of_each_combination = softmax(self.fc17(bh))
         hand_strength = sigmoid(self.fc18(cards_features))
-        if not return_features:
-            return hand_strength
-        else:
-            return hand_strength, cards_features#, flop_alone, turn_alone, river_alone
+        return hand_strength, cards_features, flop_alone, turn_alone, river_alone
 
 
 class CardFeaturizer11(t.nn.Module):
