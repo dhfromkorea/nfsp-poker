@@ -1,5 +1,7 @@
-
+# any large pickled files
+**/*.p
 .ipynb_checkpoints
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
