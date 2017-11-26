@@ -39,23 +39,6 @@ class Simulator:
     right now, players are not using networks to choose actions
     TODO: couple players with networks
     """
-    def generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
-        players = []
-        p_id = 0
-        #Strategies that do not require Q
-        for strategy in [p1_strategy, p2_strategy]:
-            if strategy not in allowed_strategies:
-                raise ValueError("Not a valid strategy")
-            elif strategy in baseline_strategies:
-                players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
-            elif strategy in qnetwork_strategies:
-                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
-#        [
-#            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
-#            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
-#        ]
-        return players
-
 
     def __init__(self, verbose, featurizer_path, cuda=False, p1_strategy='RL', p2_strategy='RL'):
         # define msc.
@@ -72,7 +55,7 @@ class Simulator:
         Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q_networks = {0: Q0, 1: Q1}
-        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)
+        self.players = self._generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)
 
         # define battle-level game states here
         self.new_game = True
@@ -98,11 +81,26 @@ class Simulator:
 
         if return_results:
             return self.games.winnings
+        # player learns
+        # for p in players:
+        #     p.learn()
 
-
-            # player learns
-            # for p in players:
-            #     p.learn()
+    def _generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
+        players = []
+        p_id = 0
+        #Strategies that do not require Q
+        for strategy in [p1_strategy, p2_strategy]:
+            if strategy not in allowed_strategies:
+                raise ValueError("Not a valid strategy")
+            elif strategy in baseline_strategies:
+                players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
+            elif strategy in qnetwork_strategies:
+                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
+#        [
+#            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
+#            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
+#        ]
+        return players
 
     def _prepare_new_game(self):
         '''
