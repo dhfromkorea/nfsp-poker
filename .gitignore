@@ -2,7 +2,8 @@
 **/*.p
 **/*.pkl
 **/*.zip
-
+**/data/hand_eval/[0-9]*/saved_models/*
+**/data/hand_eval/[0-9]*/img/*
 # jupyernotebook stuff
 .ipynb_checkpoints
 
