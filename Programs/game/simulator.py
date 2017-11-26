@@ -12,6 +12,7 @@ from game.state import build_state, create_state_variable_batch
 from time import time
 import numpy as np
 import torch as t
+import models.q_network
 from torch.autograd import Variable
 
 # define game constants here
@@ -20,10 +21,10 @@ NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 10
 NUM_ACTIONS = 14
 
-strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
+strategy_function_map = {'random': strategy_RL, 'mirror': strategy_mirror,
                          'RL' : strategy_RL}
 
-baseline_strategies = ['random', 'mirror']
+baseline_strategies = ['mirror']
 qnetwork_strategies = ['RL'] #Add NFSP
 allowed_strategies = baseline_strategies + qnetwork_strategies
 p_names = ['SB', 'DH']
@@ -46,16 +47,16 @@ class Simulator:
             if strategy not in allowed_strategies:
                 raise ValueError("Not a valid strategy")
             elif strategy in baseline_strategies:
-                players.add(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose)
+                players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
             elif strategy in qnetwork_strategies:
-                players.add(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose)        
+                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))      
 #        [
 #            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
 #            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
 #        ]
         return players
 
-    def __init__(self, verbose, p1_strategy= 'random', p2_strategy= 'random' ):
+    def __init__(self, verbose, p1_strategy= 'RL', p2_strategy= 'RL' ):
         # define msc.
         self.verbose = verbose
 

@@ -65,7 +65,7 @@ class Player:
             except IndexError:
                 raise IndexError((b_round, actions))
 
-        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=blinds, verbose=self.verbose)
+        action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS, verbose=self.verbose)
         if self.stack - action.value <= 0:
             self.is_all_in = True
             if self.verbose:

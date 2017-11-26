@@ -22,7 +22,7 @@ mbb = (big_blind / 1000)
 
 def conduct_games(p1_strategy, p2_strategy, num_games = 1e4, num_simulations = 1,  
                   ret_player_ids = [0]):
-    game_sim = simulator.Simulator(p1_strategy, p2_strategy)
+    game_sim = simulator.Simulator(False,p1_strategy = p1_strategy, p2_strategy = p2_strategy)
     results = game_sim.start(num_games)
     
     final_res = {}
