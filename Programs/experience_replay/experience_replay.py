@@ -1,6 +1,6 @@
 from experience_replay.proportional import ProportionalExperienceReplay
 from experience_replay.rank_based import RankExperienceReplay
-from experience_replay.reservoir import RankExperienceReplay
+#from experience_replay.reservoir import ReservoirExperienceReplay
 import numpy as np
 
 SUPPORTED_PRIORITY_TYPES = {}
@@ -33,7 +33,8 @@ class ReplayBufferManager:
 
             self._buffer = SUPPORTED_PRIORITY_TYPES[priority_type](self.conf)
         elif target='sl':
-            self._buffer = ReservoirExperienceReplay
+            pass
+            #self._buffer = ReservoirExperienceReplay
         else:
             raise Exception('Experience Replay target not supported')
 
