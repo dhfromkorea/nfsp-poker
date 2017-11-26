@@ -496,7 +496,7 @@ class QNetwork(t.nn.Module):
 
 
 class PiNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None):
+    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None, learning_rate = 0.01):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -515,7 +515,7 @@ class PiNetwork(t.nn.Module):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
-        # TODO: add softmax loss
+        self.optim = optim.SGD(self.parameters(), lr=learning_rate)        
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
@@ -526,6 +526,13 @@ class PiNetwork(t.nn.Module):
         return pi_values
     
     def train(self, states, actions):
+        '''    From Torch site   
+        >>>loss = nn.CrossEntropyLoss()
+        >>> input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
+        >>> target = autograd.Variable(torch.LongTensor(3).random_(5))
+        >>> output = loss(input, target)
+        >>> output.backward() '''
+        self.optim.zero_grad()
         pi_preds = self.forward(*states)[:, 0].squeeze()
         loss = nn.CrossEntropyLoss()
         output = loss(pi_preds, actions)
