@@ -1,6 +1,6 @@
 from experience_replay.proportional import ProportionalExperienceReplay
 from experience_replay.rank_based import RankExperienceReplay
-#from experience_replay.reservoir import ReservoirExperienceReplay
+from experience_replay.reservoir import ReservoirExperienceReplay
 import numpy as np
 
 SUPPORTED_PRIORITY_TYPES = {}

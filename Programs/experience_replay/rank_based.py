@@ -100,6 +100,7 @@ class RankExperienceReplay(object):
 
     def store(self, experience):
         """
+        self.record_size = 0
         store experience, suggest that experience is a tuple of (s1, a, r, s2, t)
         so each experience is valid
         :param experience: maybe a tuple, or list
