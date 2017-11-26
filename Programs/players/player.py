@@ -14,12 +14,6 @@ create_reward_var = create_reward_variable_batch()
 
 # define RL hyperparameters here
 # chosen to match the NSFP paper
-TARGET_NETWORK_UPDATE_PERIOD = 300 # every 300 episodes
-ANTICIPATORY_PARAMETER = 0.1
-EPSILON = 0.01
-NUM_HIDDEN_LAYERS = 10
-NUM_ACTIONS = 14
-GAMMA_VAL = 0.95
 
 class Player:
     '''
@@ -37,14 +31,6 @@ class Player:
         self.side_pot = 0
         self.contribution_in_this_pot = 0
         self.player_type = 'default'
-        # experience replay
-        rl_conf = {'size': 1000,
-                'learn_start': 100,
-                'partition_num': 10,
-                'total_step': 10000,
-                'batch_size': 10
-                }
-        self.memory_rl = ReplayBufferManager(target='rl', **rl_conf)
 
     def cash(self, v):
         self.side_pot = 0
@@ -87,110 +73,100 @@ class Player:
         return name + '\n' + addon + (' '.join([str(c) for c in self.cards]))
 
 
-
 class NeuralFictitiousPlayer(Player):
     '''
     NFSP
     '''
-    def __init__(self, pid, name):
+    def __init__(self, pid, strategy, stack, name, is_training=True, learning_rate=1e-3, gamma=.95, verbose=False):
+        super().__init__()
+
+        self.cards = []
+        self.stack = stack
+        self.is_dealer = False
+        self.is_all_in = False
+        self.verbose = verbose
+        self.side_pot = 0
+        self.contribution_in_this_pot = 0
+
         self.id = pid
         self.name = name
+
+        self.player_type = 'nfp'
+        self.strategy = strategy
+        self.Q_used = False
+        self.is_training = is_training
+        self.learning_rate = learning_rate
+        self.gamma = gamma
+        self.Q_target = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
-        self.Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.Q_target = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.eta = ANTICIPATORY_PARAMETER
-        self.target_update = TARGET_NETWORK_UPDATE_PERIOD
-        self.epsilon = EPSILON
-        self.pi = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.player_type = 'nfp'
-
         # experience replay
-        rl_conf = {'size': 1000,
+        rl_conf = {'size': 1e+4,
                 'learn_start': 100,
                 'partition_num': 10,
                 'total_step': 10000,
-                'batch_size': 10
+                'batch_size': 50
                 }
+        self.learn_start = rl_conf['learn_start']
         self.memory_rl = ReplayBufferManager(target='rl', **rl_conf)
-        sl_conf = {'size': 1000,
-                'learn_start': 100,
-                'partition_num': 10,
-                'total_step': 10000,
-                'batch_size': 10
-                }
+        sl_conf = {
+                   'size': 1e+4,
+                   'batch_size': 50
+                  }
         self.memory_sl = ReplayBufferManager(target='sl', **sl_conf)
 
 
-    def act(self, state):
+    def play(self, state):
         '''
         TODO: check the output action dimension
         '''
-        if self.eta > np.random.rand():
-            # use epsilon-greey policy
-            if self.epsilon > np.random.rand():
-                #choose_random_actions
-                chosen_action = 0
-            else:
-                q_vals = self.Q.forward(*state)[0].squeeze()
-                # TODO: tiebreaking
-                chosen_action = np.argmax(q_vals)
-                # encode chosen_action in the expected dimension
-        else:
-            # use average policy
-            q_vals = self.pi.forward(*state)[0].squeeze()
-            chosen_action = np.argmax(q_vals)
-
         # check if chosen_action is invalid
+        action, self.Q_used = self.strategy.choose_action(*state)
         return chosen_action
 
-    def learn(self, episode_i, is_training=True):
+    def learn(self, global_step, episode_i, is_training=True):
         '''
         NSFP algorithm: learn on batch
         TODO: add a second player with Q and PI
         '''
         # TODO: set policy with
-        GAMMA = Variable(t.Tensor([GAMMA_VAL]).float(), requires_grad=False)
-        # TODO: add another network for NSFP and M_sl
-        # turns out M_SL does not use PER (it uses Reservoir Sampling (Vitter, 1985)
-        # I will implement this soon
-        # we start learning after LEARN_START (see params to ReplayBuffer)
-        if global_step > 101:
+        if global_step > self.learn_start:
            self._learn_rl()
            self._learn_sl()
 
-        if  episode_i % self.target_update == 0:
+        if episode_i % self.target_update == 0:
             # sync target network periodically
-            self._copy_model(self.Q, self.Q_target)
+            self.strategy.sync_target_network()
 
     def _learn_rl(self):
         # sample a minibatch of experiences
-        exps, imp_weights, ids = self.memory_rl.sample(global_step=global_step)
+        gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
+        exps, imp_weights, ids = self.memory_rl.sample()
         states = create_state_var(exps[:, 0])
         actions = create_action_var(exps[:, 1])
         rewards = create_reward_var(exps[:, 2])
         next_states = create_state_var(exps[:, 3])
-        if is_training:
-            targets = rewards + GAMMA * self.Q_target.forward(*next_states)[:, 0].squeeze()
-            td_deltas = self.Q.train(states, actions, targets, imp_weights)
+        if self.is_training:
+            Q_targets = rewards + GAMMA * self.Q_target.forward(*next_states)[:, 0].squeeze()
+            td_deltas = self.Q.train(states, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 
     def _learn_sl(self):
        '''
        reservior sampling from M_sl
        '''
-       pass
+        if self.is_training:
+            exps, ids = self.memory_sl.sample()
+            states = create_state_var(exps[:, 0])
+            actions = create_action_var(exps[:, 1])
+            self.pi.train(states, actions)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)
-        # if action was chosen by e-greedy policy
-        # exp should be just (s,a)
-        #self.memory_sl.store_experience(exp)
+        if self.Q_used:
+            # if action was chosen by e-greedy policy
+            # exp should be just (s,a)
+            simple_exp = {'s': exp['s'], 'a': exp['a']}
+            self.memory_sl.store_experience(simple_exp)
 
 
-    def _copy_model(self, from_model, to_model):
-        '''
-        create a fixed target network
-        copy weights and memorys
-        '''
-        to_model.load_state_dict(from_model.state_dict())
