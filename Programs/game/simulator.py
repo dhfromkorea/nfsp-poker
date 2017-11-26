@@ -1,7 +1,7 @@
 from odds.evaluation import evaluate_hand
 from models.q_network import QNetwork, PiNetwork
 
-from players.strategies import strategy_RL, strategy_random
+from players.strategies import strategy_RL, strategy_random,strategy_mirror
 from players.player import Player
 
 # from game.utils import *
@@ -20,6 +20,13 @@ NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 10
 NUM_ACTIONS = 14
 
+strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
+                         'RL' : strategy_RL}
+
+baseline_strategies = ['random', 'mirror']
+qnetwork_strategies = ['RL'] #Add NFSP
+allowed_strategies = baseline_strategies + qnetwork_strategies
+p_names = ['SB', 'DH']
 
 class Simulator:
     """
@@ -30,8 +37,25 @@ class Simulator:
     right now, players are not using networks to choose actions
     TODO: couple players with networks
     """
+    
+    def generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
+        players = []
+        p_id = 0
+        #Strategies that do not require Q
+        for strategy in [p1_strategy, p2_strategy]:
+            if strategy not in allowed_strategies:
+                raise ValueError("Not a valid strategy")
+            elif strategy in baseline_strategies:
+                players.add(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose)
+            elif strategy in qnetwork_strategies:
+                players.add(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose)        
+#        [
+#            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
+#            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
+#        ]
+        return players
 
-    def __init__(self, verbose):
+    def __init__(self, verbose, p1_strategy= 'random', p2_strategy= 'random' ):
         # define msc.
         self.verbose = verbose
 
@@ -43,32 +67,37 @@ class Simulator:
                         NeuralFictitiousPlayer(pid=1, name='DH')]
         '''
         Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        self.players = [
-            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
-            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
-        ]
-
+        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)  
+        Q_networks = {0:Q0, 1:Q1}
+        
+        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)      
+        
         # define battle-level game states here
-
         self.new_game = True
-        self.games = {'n': 0, '#episodes': 0}  # some statistics on the games
+        self.games = {'n': 0, '#episodes': 0, 'winnings' : {}}  # some statistics on the games
         self.global_step = 0
 
         # define episode-level game states here
         self.deck = Deck()
         self.dealer = set_dealer(self.players)
         self.board = []
+       
 
-    def start(self):
+    def start(self, term_game_count = -1, return_results = False):        
         while True:
+            if term_game_count > 0 and self.games['n'] > term_game_count:
+                break            
             if self.new_game:
-                self._prepare_new_game()
+                self._prepare_new_game()                
             safe_to_start = self._prepare_new_episode()
             if not safe_to_start:
                 raise Exception('corrupt game')
-
             self._start_episode()
+            
+        if return_results:
+            return self.games.winnings
+            
+            
             # player learns
             # for p in players:
             #     p.learn()
@@ -262,9 +291,13 @@ class Simulator:
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
+    def update_winnings(self):
+        self.games.winnings[self.games['n']] = {self.players[0].stack, self.players[1].stack}
+        
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:
-            self.new_game = True
+            self.update_winnings()
+            self.new_game = True            
         else:
             self.new_game = False
 
