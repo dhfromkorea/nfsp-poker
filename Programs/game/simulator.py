@@ -9,6 +9,7 @@ from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_t
 from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
 
+from models.featurizer import FeaturizerManager
 from time import time
 import numpy as np
 import torch as t
@@ -38,7 +39,6 @@ class Simulator:
     right now, players are not using networks to choose actions
     TODO: couple players with networks
     """
-    
     def generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
         players = []
         p_id = 0
@@ -49,14 +49,15 @@ class Simulator:
             elif strategy in baseline_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
             elif strategy in qnetwork_strategies:
-                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))      
+                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
 #        [
 #            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
 #            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
 #        ]
         return players
 
-    def __init__(self, verbose, p1_strategy= 'RL', p2_strategy= 'RL' ):
+
+    def __init__(self, verbose, featurizer_path, cuda=False, p1_strategy='RL', p2_strategy='RL'):
         # define msc.
         self.verbose = verbose
 
@@ -67,12 +68,12 @@ class Simulator:
         self.players = [NeuralFictitiousPlayer(pid=0, name='SB'),
                         NeuralFictitiousPlayer(pid=1, name='DH')]
         '''
-        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)  
-        Q_networks = {0:Q0, 1:Q1}
-        
-        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)      
-        
+        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
+        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+        Q_networks = {0: Q0, 1: Q1}
+        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)
+
         # define battle-level game states here
         self.new_game = True
         self.games = {'n': 0, '#episodes': 0, 'winnings' : {}}  # some statistics on the games
@@ -82,23 +83,23 @@ class Simulator:
         self.deck = Deck()
         self.dealer = set_dealer(self.players)
         self.board = []
-       
 
-    def start(self, term_game_count = -1, return_results = False):        
+
+    def start(self, term_game_count = -1, return_results = False):
         while True:
             if term_game_count > 0 and self.games['n'] > term_game_count:
-                break            
+                break
             if self.new_game:
-                self._prepare_new_game()                
+                self._prepare_new_game()
             safe_to_start = self._prepare_new_episode()
             if not safe_to_start:
                 raise Exception('corrupt game')
             self._start_episode()
-            
+
         if return_results:
             return self.games.winnings
-            
-            
+
+
             # player learns
             # for p in players:
             #     p.learn()
@@ -294,11 +295,11 @@ class Simulator:
 
     def update_winnings(self):
         self.games.winnings[self.games['n']] = {self.players[0].stack, self.players[1].stack}
-        
+
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:
             self.update_winnings()
-            self.new_game = True            
+            self.new_game = True
         else:
             self.new_game = False
 

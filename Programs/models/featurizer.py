@@ -33,9 +33,9 @@ class FeaturizerManager():
     TODO: support checkpoint saving
     right now only Featurizer1 is supported
     '''
-    def __init__(self, hdim, n_filters, model_name=None, featurizer_type='11', cuda=False,
+    def __init__(self, hdim, n_filters, model_name=None, featurizer_type='hs', cuda=False,
                 lr=1e-4, batch_size=100, num_epochs=50, weight_decay=1e-3, plot_freq=1e+4,
-                self.checkpoint_freq=1e+6):
+                checkpoint_freq=1e+6):
         self.f = CardFeaturizer1(hdim, n_filters, cuda=cuda)
         self.data = {'train': {}, 'val': {}, 'test': {}}
         self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')[:3]
@@ -44,21 +44,21 @@ class FeaturizerManager():
         self.cuda = cuda
         self.save_path = initialize_save_folder(HS_DATA_PATH)
 
-        self.lr = 1e-4
-        self.batch_size = 64
-        self.num_epochs = 50
-        self.weight_decay = 1e-3
-        self.train_losses = []
-        self.val_losses = []
-        self.plot_freq = 500
-        self.checkpoint_freq = 5000
+        self.lr = lr
+        self.batch_size = batch_size
+        self.num_epochs = num_epochs
+        self.weight_decay = weight_decay
+        self.plot_freq = plot_freq
+        self.checkpoint_freq = checkpoint_freq
+
         if model_name is None:
             self.model_name = 'c{}_h{}xf{}_model'.format(featurizer_type, hdim, n_filters)
         else:
             self.model_name = model_name
         self.model_path = self.save_path + MODEL_PATH + self.model_name
         self.plot_path = self.save_path + PLOT_PATH
-
+        self.train_losses = []
+        self.val_losses = []
 
     def _load_data(self, paths):
         data = {}
@@ -134,31 +134,6 @@ class FeaturizerManager():
         return x_hand, x_board, y_hs, y_probas_combi
 
 
-    @staticmethod
-    def clip(x):
-        try:
-            # if x is in ByteTensor
-            return x*(x>=1e-2).float()*(x<=.99).float() + .99*(x>.99).float() + .01*(x<.01).float()
-        except:
-            return x*(x>=1e-2)*(x<=.99) + .99*(x>.99) + .01*(x<.01)
-
-
-    @staticmethod
-    def inv_freq(x, count, bins):
-        """
-        Give a weight to each loss inversely proportional to their occurence frequency
-        This way the model doesn't learn to just output the most common value
-        """
-        total = float(count.sum())
-        weight = 0.0
-        for k in range(count.shape[0]-1):
-            c, b0,b1 = float(count[k]),float(bins[k]),float(bins[k+1])
-            try:
-                weight += (total/c)*((x>=b0).Managerfloat())*((x<b1).float())
-            except:
-                weight = (total/c)*((x>=b0).float())*((x<b1).float())
-        return weight
-
     def _preprocess_data(self, includes_val=True, includes_test=False):
         train_dataset, val_dataset, test_dataset = self.load_data(True, True)
 
@@ -208,11 +183,40 @@ class FeaturizerManager():
         t.save(self.f.state_dict(), uniq_path)
 
 
-    def load_model(self, path):
+    @staticmethod
+    def load_model(path, cuda=False):
         if os.path.isfile(path):
-            self.f.load_state_dict(t.load(path))
+            # TODO: hardcoding hdim and nfliters
+            f = CardFeaturizer1(hdim=50, n_filters=10, cuda=cuda)
+            f.load_state_dict(t.load(path))
+            return f
         else:
             raise LoadModelError('The path does not exist')
+
+    @staticmethod
+    def clip(x):
+        try:
+            # if x is in ByteTensor
+            return x*(x>=1e-2).float()*(x<=.99).float() + .99*(x>.99).float() + .01*(x<.01).float()
+        except:
+            return x*(x>=1e-2)*(x<=.99) + .99*(x>.99) + .01*(x<.01)
+
+
+    @staticmethod
+    def inv_freq(x, count, bins):
+        """
+        Give a weight to each loss inversely proportional to their occurence frequency
+        This way the model doesn't learn to just output the most common value
+        """
+        total = float(count.sum())
+        weight = 0.0
+        for k in range(count.shape[0]-1):
+            c, b0,b1 = float(count[k]),float(bins[k]),float(bins[k+1])
+            try:
+                weight += (total/c)*((x>=b0).Managerfloat())*((x<b1).float())
+            except:
+                weight = (total/c)*((x>=b0).float())*((x<b1).float())
+        return weight
 
 
     def train_featurizer11(self):
@@ -308,6 +312,9 @@ class FeaturizerManager():
         self.save_model(self.save_path)
 
     def train_featurizer1(self):
+        '''
+        TODO: train_featurizer11 and train_featurizer1 will be merged!
+        '''
         train_dataset, val_dataset, test_dataset = self._preprocess_data()
         optimizer = t.optim.Adam(self.f.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 

@@ -389,19 +389,29 @@ def check_bn_var_nan(f):
 
 
 class SharedNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim):
+    def __init__(self, n_actions, hidden_dim, featurizer_hdim):
         super(SharedNetwork, self).__init__()
         self.n_actions = n_actions
         self.hidden_dim = hidden_dim
         hdim = hidden_dim
-
+        self.fdim = featurizer_hdim
+        
+        # @PROBLEM
+        #self.fc19 = fc(5 * 6 * 2, hdim)
+        #self.fc20 = fc(5 * 6 * 2 + hdim, hdim)
+        #self.fc21 = fc(5 * 6 * 2 + hdim, hdim)
+        #self.fc22 = fc(5 * 6 * 2 + hdim, hdim)
+        #self.fc23 = fc(hdim, hdim)
+        #self.fc24 = fc(5, hdim)
+        #self.fc25 = fc(3 * hdim, hdim)
+        #self.fc26 = fc(hdim, hdim)
         self.fc19 = fc(5 * 6 * 2, hdim)
-        self.fc20 = fc(5 * 6 * 2 + hdim, hdim)
-        self.fc21 = fc(5 * 6 * 2 + hdim, hdim)
-        self.fc22 = fc(5 * 6 * 2 + hdim, hdim)
+        self.fc20 = fc(5 * 6 * 2 + featurizer_hdim, hdim)
+        self.fc21 = fc(5 * 6 * 2 + featurizer_hdim, hdim)
+        self.fc22 = fc(5 * 6 * 2 + featurizer_hdim, hdim)
         self.fc23 = fc(hdim, hdim)
         self.fc24 = fc(5, hdim)
-        self.fc25 = fc(3 * hdim, hdim)
+        self.fc25 = fc(2 * hdim + featurizer_hdim, hdim)
         self.fc26 = fc(hdim, hdim)
 
     def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
@@ -438,7 +448,9 @@ class QNetwork(t.nn.Module):
             if shared_network is not None:
                 self.shared_network = shared_network
             else:
-                self.shared_network = SharedNetwork(n_actions, hidden_dim)
+                # @PROBLEM
+                self.shared_network = SharedNetwork(n_actions, hidden_dim, featurizer.hdim)
+
         for i in range(19, 27):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)
@@ -496,7 +508,7 @@ class PiNetwork(t.nn.Module):
             if shared_network is not None:
                 self.shared_network = shared_network
             else:
-                self.shared_network = SharedNetwork(n_actions, hidden_dim)
+                self.shared_network = SharedNetwork(n_actions, hidden_dim, featurizer.hdim)
         for i in range(19, 27):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)

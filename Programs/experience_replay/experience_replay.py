@@ -1,12 +1,11 @@
 from experience_replay.proportional import ProportionalExperienceReplay
 from experience_replay.rank_based import RankExperienceReplay
-#from experience_replay.rank_based import RankExperienceReplay
+from experience_replay.reservoir import RankExperienceReplay
 import numpy as np
 
 SUPPORTED_PRIORITY_TYPES = {}
 SUPPORTED_PRIORITY_TYPES['rank'] = RankExperienceReplay
 SUPPORTED_PRIORITY_TYPES['proportion'] = ProportionalExperienceReplay
-#SUPPORTED_PRIORITY_TYPES['nsfp'] = NsfpExperienceReplay
 
 
 class ReplayBufferManager:
@@ -24,14 +23,21 @@ class ReplayBufferManager:
         if priority_type not in SUPPORTED_PRIORITY_TYPES.keys():
             msg = 'unsupported replay buffer type: {}'.format(priority_strategy)
             raise Exception(msg)
-        
-        self.conf = {'size': size,
-                'learn_start': learn_start,
-                'partition_num': partition_num,
-                'total_step': total_step,
-                'batch_size': batch_size}
 
-        self._buffer = SUPPORTED_PRIORITY_TYPES[priority_type](self.conf)
+        if target='rl':
+            self.conf = {'size': size,
+                    'learn_start': learn_start,
+                    'partition_num': partition_num,
+                    'total_step': total_step,
+                    'batch_size': batch_size}
+
+            self._buffer = SUPPORTED_PRIORITY_TYPES[priority_type](self.conf)
+        elif target='sl':
+            self._buffer = ReservoirExperienceReplay
+        else:
+            raise Exception('Experience Replay target not supported')
+
+
         self._last_step_buffer = None
 
     @staticmethod
@@ -64,7 +70,7 @@ class ReplayBufferManager:
     @property
     def size(self):
         return self._buffer.record_size
-    
+
     @property
     def is_last_step_buffer_empty(self):
         return self._last_step_buffer == None
