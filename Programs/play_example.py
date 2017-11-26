@@ -23,6 +23,6 @@ if __name__ == '__main__':
 
     simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda)
     simulator.start()
-    #fm = FeaturizerManager(50, 10, cuda=cuda)
+    #fm = FeaturizerManager(hdim=50, n_filters=10, cuda=cuda)
     #fm.train_featurizer1()
     

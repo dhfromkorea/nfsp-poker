@@ -8,6 +8,8 @@ from game.state import build_state
 from game.utils import softmax
 import numpy as np
 
+import random
+
 def get_random_action(possible_actions,actions, b_round, player, opponent_side_pot):
     random_action_bucket = np.random.choice(possible_actions)
     random_action = bucket_to_action(random_action_bucket, actions, b_round, player, opponent_side_pot)
