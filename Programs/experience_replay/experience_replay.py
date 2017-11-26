@@ -19,12 +19,13 @@ class ReplayBufferManager:
                  learn_start=10, partition_num=5,
                  total_step=200, batch_size=5):
 
+        self.target = target
 
         if priority_type not in SUPPORTED_PRIORITY_TYPES.keys():
             msg = 'unsupported replay buffer type: {}'.format(priority_strategy)
             raise Exception(msg)
 
-        if target == 'rl':
+        if self.target == 'rl':
             self.conf = {'size': size,
                     'learn_start': learn_start,
                     'partition_num': partition_num,
@@ -32,9 +33,10 @@ class ReplayBufferManager:
                     'batch_size': batch_size}
 
             self._buffer = SUPPORTED_PRIORITY_TYPES[priority_type](self.conf)
-        elif target == 'sl':
-            pass
-            #self._buffer = ReservoirExperienceReplay
+        elif self.target == 'sl':
+            self.conf = {'size': size,
+                         'batch_size': batch_size}
+            self._buffer = ReservoirExperienceReplay(self.conf)
         else:
             raise Exception('Experience Replay target not supported')
 
@@ -49,6 +51,9 @@ class ReplayBufferManager:
 
 
     def store_experience(self, experience):
+        if self.target == 'sl':
+            return self.store(experience)
+
         # store experience
         # note: timestep is needed to compute importance weights
         # check this paper: https://arxiv.org/pdf/1511.05952.pdf
@@ -92,7 +97,10 @@ class ReplayBufferManager:
             weights: importance weights to adjust for sampling bias
             exp_ids: experience ids required for updates later
         '''
-        return self._buffer.sample(global_step)
+        if self.target == 'rl':
+            return self._buffer.sample(global_step)
+        else:
+            return self._buffer.sample()
 
 
     def update(self, exp_ids, deltas):
@@ -101,5 +109,7 @@ class ReplayBufferManager:
             exp_ids: experience ids provided from sampling
             deltas: list of absolute td errors
         '''
-        self._buffer.update_priority(exp_ids, deltas)
+        if self.target == 'rl':
+            self._buffer.update_priority(exp_ids, deltas)
+
 

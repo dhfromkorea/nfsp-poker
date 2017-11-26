@@ -347,7 +347,6 @@ def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
                             return Action('raise', value=raise_value, min_raise=False)
                         else:
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
-    #import pdb; pdb.set_trace()
     raise ValueError((actions, player, bucket, b_round))
 
 
@@ -382,7 +381,8 @@ def sample_action(idx, probabilities):
     """
     try:
         return idx[sample_categorical(probabilities)]
-    except ValueError:
+    except:
+        import pdb;pdb.set_trace()
         raise ValueError(probabilities)
 
 

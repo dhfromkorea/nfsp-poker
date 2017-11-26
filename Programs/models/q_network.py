@@ -518,7 +518,9 @@ class PiNetwork(t.nn.Module):
         self.optim = optim.SGD(self.parameters(), lr=learning_rate)        
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
-        HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+
+        #HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 

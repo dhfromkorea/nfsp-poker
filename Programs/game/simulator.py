@@ -1,10 +1,10 @@
 from odds.evaluation import evaluate_hand
 from models.q_network import QNetwork, PiNetwork
 
-from players.strategies import strategy_RL, strategy_random,strategy_mirror
-from players.player import Player
+from players.strategies import strategy_RL, strategy_random, strategy_mirror, StrategyNFSP
+from players.player import Player, NeuralFictitiousPlayer
 
-# from game.utils import *
+from game.utils import *
 from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
 from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
@@ -61,7 +61,7 @@ class Simulator:
         Pi1 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1:Pi1}
-        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose)
+        self.players = self._generate_player_instances(p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose)
 
         # define battle-level game states here
         self.new_game = True
@@ -72,6 +72,7 @@ class Simulator:
         self.deck = Deck()
         self.dealer = set_dealer(self.players)
         self.board = []
+        self.experiences = [None] * len(self.players)
 
 
     def start(self, term_game_count = -1, return_results = False):
@@ -86,14 +87,11 @@ class Simulator:
             self._start_episode()
 
         if return_results:
-            return self.games.winnings
-        # player learns
-        # for p in players:
-        #     p.learn()
+            #return self.games.winnings
             return self.games['winnings']
 
 
-    def _generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
+    def _generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose):
         players = []
         p_id = 0
         #Strategies that do not require Q
@@ -179,13 +177,10 @@ class Simulator:
         # store terminal experience from the previous step
         # we want to modify the reward of the previous step
         # based on the calculation below
-        self.experience = {'s': 'TERMINAL',
-                           'r': 0,
-                           't': self.global_step,
-                           'is_new_game': self.new_game,
-                           'is_terminal': False,
-                           'final_reward': 0
-                           }
+
+        # initialize experiences for player 1 and 2
+        self.experiences[0] = self._make_new_exp()
+        self.experiences[1] = self._make_new_exp()
         # WINNERS GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
@@ -198,20 +193,29 @@ class Simulator:
 
         # store final experience
         # KEEP TRACK OF TRANSITIONS
-        self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
+        self.experiences[0]  = self.make_experience(self.players[0], self.action, self.new_game, self.board,
+                                               self.pot, self.dealer, self.actions, BLINDS[1],
+                                               self.global_step)
+        self.experiences[1]  = self.make_experience(self.players[1], self.action, self.new_game, self.board,
                                                self.pot, self.dealer, self.actions, BLINDS[1],
                                                self.global_step)
 
-        # self.players[0].remember(self.experience)
+        self.players[0].remember(self.experiences[0])
+        self.players[1].remember(self.experiences[1])
+        for p in self.players:
+            p.learn(self.global_step, self.games['#episodes'])
 
-        # RESET VARIABLES
         self._reset_variables()
+        # TODO: remove this! temp variable
+        self.is_new_game = True
         # IS IT THE END OF THE GAME ? (bankruptcy)
         self._set_new_game()
 
     def _play_rounds(self):
         # EPISODE ACTUALLY STARTS HERE
         for r in range(NUM_ROUNDS):
+            if r > 0:
+                self.new_game = False
             self.b_round = r
             # DIFFERENTIATE THE CASES WHERE PLAYERS ARE ALL-IN FROM THE ONES WHERE NONE OF THEM IS
             if self.all_in < 2:
@@ -239,7 +243,8 @@ class Simulator:
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
 
-                # self.players[0].rememember(self.experience)
+                self.players[0].remember(self.experiences[0])
+                self.players[1].remember(self.experiences[1])
 
                 # END THE EPISODE
                 self._update_side_pot()
@@ -253,6 +258,7 @@ class Simulator:
         self.player = self.players[self.to_play]
         assert self.player.stack >= 0, self.player.stack
         assert not ((self.player.stack == 0) and not self.player.is_all_in), (self.player, self.player.is_all_in, self.actions)
+
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
 
@@ -267,17 +273,20 @@ class Simulator:
             return
 
         # RL : Store experiences in memory. Just for the agent
-        if self.player.id == 0:
-            # KEEP TRACK OF TRANSITItNS
-            self.experience = self.make_experience(self.players, self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step)
-            # self.players[0].remember(self.experience)
+        self.experiences[0]= self.make_experience(self.players[0], self.action, self.new_game, self.board,
+                                               self.pot, self.dealer, self.actions, BLINDS[1],
+                                               self.global_step)
 
+        self.experiences[1]= self.make_experience(self.players[1], self.action, self.new_game, self.board,
+                                               self.pot, self.dealer, self.actions, BLINDS[1],
+                                               self.global_step)
+        self.players[0].remember(self.experiences[0])
+        self.players[1].remember(self.experiences[1])
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
         if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
             try:
                 assert self.action.value > 0
+                pass
             except AssertionError:
                 raise AssertionError
 
@@ -330,7 +339,8 @@ class Simulator:
         self.players[1].contribution_in_this_pot = 0
 
         # RL : update the memory with the amount you won
-        self.experience['final_reward'] = pot_0
+        self.experiences[0]['final_reward'] = pot_0
+        self.experiences[1]['final_reward'] = pot_1
         self.split = False
 
     def _handle_no_split(self):
@@ -352,7 +362,11 @@ class Simulator:
         if self.winner == 0:
             # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
             if not self.players[0].memory_rl.is_last_step_buffer_empty:
-                self.experience['final_reward'] = self.pot
+                self.experiences[0]['final_reward'] = self.pot
+
+            if not self.players[1].memory_rl.is_last_step_buffer_empty:
+                self.experiences[1]['final_reward'] = self.pot
+
 
     def _handle_no_fold(self):
         # compute the value of hands
@@ -415,12 +429,15 @@ class Simulator:
         msg = 'call was not handled correctly: {}'.format(side_pot)
         if self.b_round > 0:
             assert np.sum(side_pot) == self.players[1 - self.player.id].side_pot, msg
+            pass
         else:
             if len(self.actions[self.b_round][1 - self.player.id]) == 0:
                 assert self.action.value == 1
+                pass
             else:
                 side_pot = (self.action.value, self.player.side_pot)
                 assert np.sum(side_pot) == self.players[1 - self.player.id].side_pot, msg
+                pass
 
     def _handle_fold(self):
         self.fold_occured = True
@@ -458,11 +475,11 @@ class Simulator:
         assert not ((self.player.stack == 0) and self.action.type != 'all in'), (self.actions, self.action, self.player)
         self.actions[self.b_round][self.player.id].append(self.action)
 
-    def make_experience(self, players, action, new_game, board, pot, dealer, actions,
+    def make_experience(self, player, action, new_game, board, pot, dealer, actions,
                         big_blind, global_step):
         # ugly...
-        state = [players[0], board, np.array([players[0].stack]),
-                 actions, None, np.array([players[1].stack]),
+        state = [player, board, np.array([player.stack]),
+                 actions, None, np.array([self.players[1 - self.player.id].stack]),
                  big_blind]
         state_ = build_state(*state, as_variable=False)
 
@@ -476,8 +493,21 @@ class Simulator:
                       'r': reward_,
                       'next_s': None,
                       't': step_,
-                      'is_new_game': new_game,
+                      'is_new_game': self.new_game,
                       'is_terminal': False,
                       'final_reward': 0
                       }
         return experience
+
+
+    def _make_new_exp(self):
+        exp = {'s': 'TERMINAL',
+               'a': None,
+               'r': 0,
+               's': None,
+               't': self.global_step,
+               'is_new_game': self.new_game,
+               'is_terminal': False,
+               'final_reward': 0
+               }
+        return exp

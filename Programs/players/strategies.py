@@ -8,7 +8,7 @@ from game.state import build_state
 from game.utils import softmax
 import numpy as np
 import random
-
+import torch as t 
 import random
 
 
@@ -134,31 +134,7 @@ def strategy_RL(Q, greedy):
     return lambda player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS, verbose=False, eps = 0: strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q, greedy=greedy, blinds=blinds, verbose=verbose, eps = eps)
 
 
-#def strategy_NSFP_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q,
-#                      greedy=greedy, blinds=blinds, verbose=verbose, eps=eps):
-#    if eta > np.random.rand():
-#        # use epsilon-greey policy
-#        action = strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack,
-#                                 opponent_side_pot, Q, greedy=greedy, blinds=blinds,
-#                                 verbose=verbose, eps = eps)
-#        Q_used = True
-#    else:
-#        # use average policy
-#
-#        state = build_state(player, board, pot, actions, b_round, opponent_stack, big_blind, as_variable=True)
-#        action_probs = pi.forward(*state).squeeze()
-#        possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
-#        idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
-#
-#        action = bucket_to_action(sample_action(idx, action_probs), actions, b_round, player, opponent_side_pot)
-#        Q_used = False
-#    return action, Q_used
-#
-#def strategy_NFSP(Q, pi):
-#    """Function generator"""
-#    return lambda player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS, verbose=False, eps = 0: strategy_NFSP_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q, greedy=greedy, blinds=blinds, verbose=verbose, eps = eps)
-#
-class StrategyNSFP():
+class StrategyNFSP():
     def __init__(self, Q, pi, eta, eps=.05, is_greedy=True, verbose=False):
         self._Q = Q
         self._pi = pi
@@ -167,25 +143,28 @@ class StrategyNSFP():
         self.eta = eta
         self.is_Q_used = False
         self.is_greedy = is_greedy
+        self.verbose = verbose
 
     def choose_action(self, player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
 
         if self.eta > np.random.rand():
             # use epsilon-greey policy
             action = strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack,
-                                     opponent_side_pot, self.Q, greedy=self.greedy, blinds=blinds,
-                                     verbose=verbose, eps = eps)
+                                     opponent_side_pot, self._Q, greedy=self.is_greedy, blinds=blinds,
+                                     verbose=self.verbose, eps=self.eps)
             self.is_Q_used = True
         else:
             # use average policy
-            state = build_state(player, board, pot, actions, b_round, opponent_stack, big_blind, as_variable=True)
-            action_probs = self.pi.forward(*state).squeeze()
+            state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds[1], as_variable=True)
+            action_probs = self._pi.forward(*state).squeeze()
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
-            idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
 
-            action = bucket_to_action(sample_action(idx, action_probs), actions, b_round, player, opponent_side_pot)
+            idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
+            valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])
+            valid_action_probs /= t.sum(valid_action_probs)
+            action = bucket_to_action(sample_action(idx, valid_action_probs), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = True
-        return action
+        return action, self.is_Q_used
 
 
     def sync_target_network(self):

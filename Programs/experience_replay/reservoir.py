@@ -13,6 +13,7 @@ class ReservoirExperienceReplay():
     # TODO: save the experience in a pickle
     def __init__(self, conf):
         self.size = conf['size']
+        self.batch_size = conf['batch_size']
         self._buffer = deque(maxlen=self.size)
 
     @property
@@ -50,11 +51,11 @@ class ReservoirExperienceReplay():
             raise ExperienceReplayStoreError
             return False
 
-    def sample(self, batch_size):
+    def sample(self):
         '''
         '''
         try:
-            return random.sample(self.buffer, batch_size)
+            return random.sample(self.buffer, self.batch_size)
         except ValueError:
             print('Not enough data to sample from the buffer')
             return None
