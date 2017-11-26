@@ -13,8 +13,9 @@ from game.simulator import Simulator
 from models.featurizer import FeaturizerManager
 
 # change the model path to load the right one
-FEATURIZER_NAME = 'c11_h50xf10_model9'
-SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + FEATURIZER_NAME
+#FEATURIZER_NAME = 'c11_h50xf10_model9'
+#SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + FEATURIZER_NAME
+SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + 'card_featurizer1.50-10.model.pytorch'
 
 if __name__ == '__main__':
     # TODO: arg parser

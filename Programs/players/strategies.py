@@ -102,11 +102,13 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     :return:
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
-    print(player.stack, player.side_pot, opponent_side_pot, possible_actions)
+    #print(player.stack, player.side_pot, opponent_side_pot, possible_actions)
     state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds[1])
+    #import pdb; pdb.set_trace()
     Q_values = Q.forward(*state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues
-    print([float('%.1f' % q) for q in Q_values])
-
+    #import pdb; pdb.set_trace()
+    #print([float('%.1f' % q) for q in Q_values.data.numpy()])
+    Q_values = Q_values.data.numpy()
     # choose action in a greedy way
     if greedy:
         Q_values_for_possible_actions = [Q_value for k, Q_value in enumerate(Q_values) if idx_to_bucket(k) in possible_actions]

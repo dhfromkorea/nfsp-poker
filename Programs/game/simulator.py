@@ -21,13 +21,16 @@ INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 10
 NUM_ACTIONS = 14
+P1_ETA = 0.1
+P2_ETA = 0.1
 
 strategy_function_map = {'random': strategy_RL, 'mirror': strategy_mirror,
                          'RL' : strategy_RL}
 
 baseline_strategies = ['mirror']
-qnetwork_strategies = ['RL'] #Add NFSP
-allowed_strategies = baseline_strategies + qnetwork_strategies
+qnetwork_strategies = ['RL']
+NFSP_strategies = ['NFSP']
+allowed_strategies = baseline_strategies + qnetwork_strategies + NFSP_strategies
 p_names = ['SB', 'DH']
 
 class Simulator:
@@ -54,8 +57,11 @@ class Simulator:
         featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
         Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+        Pi0 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+        Pi1 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q_networks = {0: Q0, 1: Q1}
-        self.players = self._generate_player_instances(p1_strategy, p2_strategy, Q_networks, verbose)
+        Pi_networks = {0: Pi0, 1:Pi1}
+        self.players = self.generate_player_instances(p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose)
 
         # define battle-level game states here
         self.new_game = True
@@ -84,6 +90,8 @@ class Simulator:
         # player learns
         # for p in players:
         #     p.learn()
+            return self.games['winnings']
+
 
     def _generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, verbose):
         players = []
@@ -94,8 +102,13 @@ class Simulator:
                 raise ValueError("Not a valid strategy")
             elif strategy in baseline_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                p_id += 1
             elif strategy in qnetwork_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                p_id += 1
+            elif strategy in NFSP_strategies:
+                players.append(NeuralFictitiousPlayer(p_id, StrategyNFSP(Q_networks[p_id],Pi_networks[p_id],P1_ETA), INITIAL_MONEY, p_names[p_id], verbose = verbose ))
+                p_id += 1
 #        [
 #            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
 #            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
@@ -291,8 +304,10 @@ class Simulator:
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
-    def update_winnings(self):
-        self.games.winnings[self.games['n']] = {self.players[0].stack, self.players[1].stack}
+    def update_winnings(self, log_freq = 100):
+        self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
+        if self.games['n'] % log_freq == 0:
+            print(self.games['n'], " games over")
 
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:

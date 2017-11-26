@@ -80,6 +80,7 @@ class CardFeaturizer1(t.nn.Module):
         color_board = t.sum(t.sum(board, 2), 1)
         kinds_hand = t.sum(hand, -1)
         kinds_board = t.sum(t.sum(board, -1), 1)
+        #import pdb; pdb.set_trace()
         colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
@@ -464,6 +465,7 @@ class QNetwork(t.nn.Module):
         self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        #import pdb; pdb.set_trace()
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
@@ -471,7 +473,7 @@ class QNetwork(t.nn.Module):
         q_values = self.fc28(q_values)
         return q_values
 
-    def train(self, states, actions, targets, imp_weights):
+    def train(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
@@ -494,7 +496,7 @@ class QNetwork(t.nn.Module):
 
 
 class PiNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None):
+    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None, learning_rate = 0.01):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -513,7 +515,7 @@ class PiNetwork(t.nn.Module):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
-        # TODO: add softmax loss
+        self.optim = optim.SGD(self.parameters(), lr=learning_rate)        
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
@@ -523,5 +525,18 @@ class PiNetwork(t.nn.Module):
         pi_values = selu(self.fc27(situation_with_opponent))
         pi_values = softmax(self.fc28(pi_values))
         return pi_values
-
-
+    
+    def train(self, states, actions):
+        '''    From Torch site   
+         loss = nn.CrossEntropyLoss()
+         input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
+         target = autograd.Variable(torch.LongTensor(3).random_(5))
+         output = loss(input, target)
+         output.backward()
+        '''
+        self.optim.zero_grad()
+        pi_preds = self.forward(*states)[:, 0].squeeze()
+        loss = nn.CrossEntropyLoss()
+        output = loss(pi_preds, actions)
+        output.backward()
+        self.optim.step()

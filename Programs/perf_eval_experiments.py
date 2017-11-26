@@ -16,6 +16,6 @@ import evaluation.expt_utils as eu
 
 #Example
 results_dict = {}
-results_dict['Mirror vs Mirror'] = eu.conduct_games('mirror', 'mirror')
+results_dict['Random vs Random'] = eu.conduct_games('RL', 'RL', num_games = 10)
 eu.plot_results(results_dict)
 

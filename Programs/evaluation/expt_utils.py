@@ -5,9 +5,8 @@ Created on Sat Nov 25 22:08:31 2017
 @author: SrivatsanPC
 """
 
-'''Win rates measured in average mbb/game. mbb is a standard unit of measurement in Poker literature.
+'''Win rates measured in average BB/game. mbb is a standard unit of measurement in Poker literature.
 Say a game with SB = 5$ and BB = 10$. Winning 1$ in a game  would amount to a BB of 0.10.
-or 10 mbb/game.mbb - milli BB is 1/1000th of a BB.
 '''
 
 #Compares your AI agent with a random agent and plots wins.
@@ -18,18 +17,20 @@ import matplotlib.pyplot as plt
 from random import randint
 
 big_blind = BLINDS[1]
-mbb = (big_blind / 1000)
+SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/' + 'card_featurizer1.50-10.model.pytorch'
+
 
 def conduct_games(p1_strategy, p2_strategy, num_games = 1e4, num_simulations = 1,  
                   ret_player_ids = [0]):
-    game_sim = simulator.Simulator(False,p1_strategy = p1_strategy, p2_strategy = p2_strategy)
-    results = game_sim.start(num_games)
-    
+    game_sim = simulator.Simulator(False, SAVED_FEATURIZER_PATH, p1_strategy = p1_strategy, 
+                                   p2_strategy = p2_strategy)
+    results = game_sim.start(num_games,return_results = True)
+    import pdb;pdb.set_trace()
     final_res = {}
     for player_id in ret_player_ids:
         player_res = []
         for game in results.keys():
-            player_res.append(results[game]/mbb)
+            player_res.append(results[game] / big_blind)
         final_res[player_id] = player_res
     return final_res
         
