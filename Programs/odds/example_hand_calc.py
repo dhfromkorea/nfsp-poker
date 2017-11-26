@@ -22,10 +22,10 @@ import time
 
 #Example for calculating hand strength including the board cards.
 
-card_1 = hf.Card('Tc')
-card_2 = hf.Card('Td')
+card_1 = hf.Card('Td')
+card_2 = hf.Card('Js')
 combo = (card_1,card_2)
-board = [hf.Card('2d'), hf.Card('5d'), hf.Card('Ac')]
+board = [hf.Card('2c'), hf.Card('8s'), hf.Card('8d')]
 start_time = time.time()
 out = hc.run((tuple(combo),),int(1e4),True, board,None,False)
 end_time = time.time()
