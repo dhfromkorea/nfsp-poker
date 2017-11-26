@@ -7,6 +7,7 @@ from game.game_utils import *
 from game.state import build_state
 from game.utils import softmax
 import numpy as np
+import random
 
 def get_random_action(possible_actions,actions, b_round, player, opponent_side_pot):
     random_action_bucket = np.random.choice(possible_actions)
@@ -65,7 +66,7 @@ def strategy_mirror(player, board, pot, actions, b_round, opponent_stack, oppone
             if max_bet_bucket == 1:
                 small_blind_bucket = 14
             else:
-                small_blind_bucket = 2
+                small_blind_bucket = 1
             mirror_action = bucket_to_action(small_blind_bucket, actions, b_round, player, opponent_side_pot)
             return mirror_action
         else:
