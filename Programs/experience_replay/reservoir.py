@@ -31,7 +31,7 @@ class ReservoirExperienceReplay():
 
     def store(self, experience):
         '''
-        experience is a tuple of (s, a, t, exp_id)
+        experience is a tuple of (s, a, exp_id)
         where exp_id is record index
         '''
         # if failed
