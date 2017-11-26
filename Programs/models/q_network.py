@@ -473,7 +473,7 @@ class QNetwork(t.nn.Module):
         q_values = self.fc28(q_values)
         return q_values
 
-    def train(self, states, actions, targets, imp_weights):
+    def train(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
@@ -524,3 +524,10 @@ class PiNetwork(t.nn.Module):
         pi_values = selu(self.fc27(situation_with_opponent))
         pi_values = softmax(self.fc28(pi_values))
         return pi_values
+    
+    def train(self, states, actions):
+        pi_preds = self.forward(*states)[:, 0].squeeze()
+        loss = nn.CrossEntropyLoss()
+        output = loss(pi_preds, actions)
+        output.backward()
+        self.optim.step()
