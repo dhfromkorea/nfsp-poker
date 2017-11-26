@@ -88,7 +88,7 @@ class Player:
 
 
 
-class NeuralFictitiousPlayer:
+class NeuralFictitiousPlayer(Player):
     '''
     NFSP
     '''

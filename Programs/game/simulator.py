@@ -9,6 +9,7 @@ from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_t
 from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
 
+from models.featurizer import FeaturizerManager
 from time import time
 import numpy as np
 import torch as t
@@ -31,7 +32,7 @@ class Simulator:
     TODO: couple players with networks
     """
 
-    def __init__(self, verbose):
+    def __init__(self, verbose, featurizer_path, cuda=False):
         # define msc.
         self.verbose = verbose
 
@@ -42,8 +43,10 @@ class Simulator:
         self.players = [NeuralFictitiousPlayer(pid=0, name='SB'),
                         NeuralFictitiousPlayer(pid=1, name='DH')]
         '''
-        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
-        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+
+        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
+        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         self.players = [
             Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
             Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
