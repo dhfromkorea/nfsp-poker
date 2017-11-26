@@ -65,6 +65,7 @@ class Player:
             except IndexError:
                 raise IndexError((b_round, actions))
 
+        #import pdb; pdb.set_trace()
         action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS, verbose=self.verbose)
         if self.stack - action.value <= 0:
             self.is_all_in = True

@@ -80,6 +80,7 @@ class CardFeaturizer1(t.nn.Module):
         color_board = t.sum(t.sum(board, 2), 1)
         kinds_hand = t.sum(hand, -1)
         kinds_board = t.sum(t.sum(board, -1), 1)
+        #import pdb; pdb.set_trace()
         colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
@@ -464,6 +465,7 @@ class QNetwork(t.nn.Module):
         self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        #import pdb; pdb.set_trace()
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)

@@ -48,8 +48,10 @@ class Simulator:
                 raise ValueError("Not a valid strategy")
             elif strategy in baseline_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                p_id += 1
             elif strategy in qnetwork_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                p_id += 1
 #        [
 #            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
 #            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
@@ -97,7 +99,7 @@ class Simulator:
             self._start_episode()
 
         if return_results:
-            return self.games.winnings
+            return self.games['winnings']
 
 
             # player learns
@@ -293,8 +295,10 @@ class Simulator:
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
-    def update_winnings(self):
-        self.games.winnings[self.games['n']] = {self.players[0].stack, self.players[1].stack}
+    def update_winnings(self, log_freq = 100):
+        self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
+        if self.games['n'] % log_freq == 0:
+            print(self.games['n'], " games over")
 
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:
