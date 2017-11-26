@@ -19,6 +19,7 @@ ANTICIPATORY_PARAMETER = 0.1
 EPSILON = 0.01
 NUM_HIDDEN_LAYERS = 10
 NUM_ACTIONS = 14
+GAMMA_VAL = 0.95
 
 class Player:
     '''
@@ -89,7 +90,7 @@ class Player:
 
 class NeuralFictitiousPlayer:
     '''
-    NSFP
+    NFSP
     '''
     def __init__(self, pid, name):
         self.id = pid
@@ -122,7 +123,6 @@ class NeuralFictitiousPlayer:
 
 
     def act(self, state):
-
         '''
         TODO: check the output action dimension
         '''
@@ -130,7 +130,7 @@ class NeuralFictitiousPlayer:
             # use epsilon-greey policy
             if self.epsilon > np.random.rand():
                 #choose_random_actions
-                chosen_ation = 0
+                chosen_action = 0
             else:
                 q_vals = self.Q.forward(*state)[0].squeeze()
                 # TODO: tiebreaking
@@ -150,7 +150,7 @@ class NeuralFictitiousPlayer:
         TODO: add a second player with Q and PI
         '''
         # TODO: set policy with
-        GAMMA = Variable(t.Tensor([0.95]).float(), requires_grad=False)
+        GAMMA = Variable(t.Tensor([GAMMA_VAL]).float(), requires_grad=False)
         # TODO: add another network for NSFP and M_sl
         # turns out M_SL does not use PER (it uses Reservoir Sampling (Vitter, 1985)
         # I will implement this soon
@@ -159,7 +159,7 @@ class NeuralFictitiousPlayer:
            self._learn_rl()
            self._learn_sl()
 
-        if self.target_update % episode_i == 0:
+        if  episode_i % self.target_update == 0:
             # sync target network periodically
             self._copy_model(self.Q, self.Q_target)
 
