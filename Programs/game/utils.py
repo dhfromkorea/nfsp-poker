@@ -1,5 +1,7 @@
 import numpy as np
 import torch as t
+import datetime
+import os, errno
 
 
 def softmax(x):
@@ -44,3 +46,18 @@ def variable(array, requires_grad=False, to_float=True, cuda=False):
 def moving_avg(x, window=50):
     return [np.mean(x[k:k+window]) for k in range(len(x)-window)]
 
+
+def initialize_save_folder(path):
+    date = datetime.datetime.now().strftime('%Y_%m_%d')
+    save_path = path + date + '/'
+    try:
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+            if not os.path.exists(save_path + 'img/'):
+                os.makedirs(save_path + 'img/')
+            if not os.path.exists(save_path + 'saved_models/'):
+                os.makedirs(save_path + 'saved_models/')
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise Exception('could not initialize save data folder')
+    return save_path

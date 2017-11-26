@@ -12,7 +12,7 @@ sigmoid = Sigmoid()
 
 def get_shape(x):
     try:
-        return x.data.numpy().shape
+        return x.data.cpu().numpy().shape
     except:
         return x.numpy().shape
 
@@ -27,10 +27,9 @@ class CardFeaturizer1(t.nn.Module):
     The one i got results with
     SELU + AlphaDropout + smart initialization
     """
-    def __init__(self, hdim, n_filters):
+    def __init__(self, hdim, n_filters, cuda=False):
         super(CardFeaturizer1, self).__init__()
         self.hdim = hdim
-
         self.conv1 = conv(2, n_filters, 1)
         self.conv2 = conv(n_filters, n_filters, 5, padding=2)
         self.conv3 = conv(n_filters, n_filters, 3, padding=1)
@@ -59,13 +58,17 @@ class CardFeaturizer1(t.nn.Module):
             if i == 16 or i == 17:
                 continue
             fcc = getattr(self, 'fc' + str(i))
-            shape = fcc.weight.data.numpy().shape
+            shape = fcc.weight.data.cpu().numpy().shape
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
 
         for i in range(1, 6):
             convv = getattr(self, 'conv' + str(i))
-            shape = convv.weight.data.numpy().shape
+            shape = convv.weight.data.cpu().numpy().shape
             convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
+
+        if cuda:
+            # configure the model params on gpu
+            self.cuda()
 
     def forward(self, hand, board):
         dropout = AlphaDropout(.1)
@@ -120,7 +123,7 @@ class CardFeaturizer1(t.nn.Module):
 
 
 class CardFeaturizer11(t.nn.Module):
-    def __init__(self, hdim, n_filters):
+    def __init__(self, hdim, n_filters, cuda=False):
         super(CardFeaturizer11, self).__init__()
         self.hdim = hdim
 
@@ -152,13 +155,17 @@ class CardFeaturizer11(t.nn.Module):
             if i == 16:
                 continue
             fcc = getattr(self, 'fc' + str(i))
-            shape = fcc.weight.data.numpy().shape
+            shape = fcc.weight.data.cpu().numpy().shape
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
 
         for i in range(1, 6):
             convv = getattr(self, 'conv' + str(i))
-            shape = convv.weight.data.numpy().shape
+            shape = convv.weight.data.cpu().numpy().shape
             convv.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[-1] * shape[-2]), shape)).float()
+
+        if cuda:
+            # configure the model params on gpu
+            self.cuda()
 
     def forward(self, hand, board, ret_feat=False):
         dropout = AlphaDropout(.1)
@@ -370,14 +377,14 @@ def check_bn_var_nan(f):
             c = getattr(f, 'conv' + str(i) + '_bn')
         except:
             continue
-        if np.sum(np.isnan(c.running_var.numpy())) > 0:
+        if np.sum(np.isnan(c.running_var.cpu().numpy())) > 0:
             raise ValueError('conv bn %s has var 0 !' % i)
     for i in range(1, 16):
         try:
             c = getattr(f, 'fc' + str(i) + '_bn')
         except:
             continue
-        if np.sum(np.isnan(c.running_var.numpy())) > 0:
+        if np.sum(np.isnan(c.running_var.cpu().numpy())) > 0:
             raise ValueError('fc bn %s has var 0 !' % i)
 
 
