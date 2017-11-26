@@ -24,7 +24,7 @@ class ReplayBufferManager:
             msg = 'unsupported replay buffer type: {}'.format(priority_strategy)
             raise Exception(msg)
 
-        if target='rl':
+        if target == 'rl':
             self.conf = {'size': size,
                     'learn_start': learn_start,
                     'partition_num': partition_num,
@@ -32,7 +32,7 @@ class ReplayBufferManager:
                     'batch_size': batch_size}
 
             self._buffer = SUPPORTED_PRIORITY_TYPES[priority_type](self.conf)
-        elif target='sl':
+        elif target == 'sl':
             pass
             #self._buffer = ReservoirExperienceReplay
         else:
