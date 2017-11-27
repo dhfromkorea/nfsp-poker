@@ -34,13 +34,13 @@ class FeaturizerManager():
     right now only Featurizer1 is supported
     '''
     def __init__(self, hdim, n_filters, model_name=None, featurizer_type='hs', cuda=False,
-                lr=1e-4, batch_size=100, num_epochs=50, weight_decay=1e-3, plot_freq=1e+4,
-                checkpoint_freq=1e+6):
+                lr=1e-4, batch_size=100, num_epochs=50, weight_decay=1e-3, plot_freq=10000,
+                 checkpoint_freq=100000):
         self.f = CardFeaturizer1(hdim, n_filters, cuda=cuda)
         self.data = {'train': {}, 'val': {}, 'test': {}}
-        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')[:3]
-        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')[:3]
-        self.test_paths = g.glob(HS_DATA_TEST_PATH + '*t')[:3]
+        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')
+        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')
+        self.test_paths = g.glob(HS_DATA_TEST_PATH + '*t')
         self.cuda = cuda
         self.save_path = initialize_save_folder(HS_DATA_PATH)
 
@@ -171,7 +171,8 @@ class FeaturizerManager():
         #count, bins, _ = plt.hist(y_hs_train, bins=50)
         return train_dataset, val_dataset, test_dataset
 
-    def save_model(self, path, is_best=False):
+    def save_model(self, path, epoch_i, batch_i, is_best=False):
+        path += '_e{}b{}'.format(epoch_i, batch_i)
         if is_best:
             uniq_path = path + '_best'
         else:
@@ -311,11 +312,12 @@ class FeaturizerManager():
         # after training is over, we save the model
         self.save_model(self.save_path)
 
-    def train_featurizer1(self):
+    def train_featurizer1(self, includes_val=True, includes_test=False):
         '''
         TODO: train_featurizer11 and train_featurizer1 will be merged!
         '''
-        train_dataset, val_dataset, test_dataset = self._preprocess_data()
+        train_dataset, val_dataset, test_dataset =\
+        self._preprocess_data(includes_val=includes_val, includes_test=includes_test)
         optimizer = t.optim.Adam(self.f.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
         for epoch_i in range(self.num_epochs):
@@ -356,7 +358,7 @@ class FeaturizerManager():
                 loss.backward()
                 optimizer.step()
                 if (batch_i + 1) % self.plot_freq == 0:
-                    display.clear_output(wait=True)
+                    #display.clear_output(wait=True)
 
                     # test loss on a random test sample
                     # QUESTION: we may be validating for the same samples?
@@ -390,14 +392,14 @@ class FeaturizerManager():
                     plt.xlabel('Number of iterations')
                     plt.ylabel('Loss')
                     plt.legend(loc='best')
-                    fig.savefig('{}loss_i{}'.format(self.plot_path, batch_i), ppi=300, bbox_inches='tight')
+                    fig.savefig('{}loss_e{}b{}'.format(self.plot_path, epoch_i, batch_i), ppi=300, bbox_inches='tight')
                     plt.close()
 
                 if (batch_i + 1) % self.checkpoint_freq == 0:
                     # saving checkpoints
-                    self.save_model(self.model_path)
+                    self.save_model(self.model_path, epoch_i, batch_i)
         # after training is over, we save the model
-        self.save_model(self.model_path, is_best=True)
+        self.save_model(self.model_path, epoch_i, batch_i, is_best=True)
 
     def plot(self):
         pass

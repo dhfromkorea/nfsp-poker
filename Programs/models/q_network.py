@@ -457,12 +457,8 @@ class QNetwork(t.nn.Module):
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
 
-        # loss as MSE
         self.criterion = nn.MSELoss()
-        # TODO: need model params
-        # need to build model using model.sequential ...
-        # https://github.com/harvard-ml-courses/cs281-demos/blob/master/SoftmaxTorch.ipynb
-        self.optim = optim.SGD([self.fc27.weight], lr=learning_rate)
+        self.optim = optim.SGD(self.parameters(), lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         #import pdb; pdb.set_trace()
