@@ -34,15 +34,16 @@ class FeaturizerManager():
     right now only Featurizer1 is supported
     '''
     def __init__(self, hdim, n_filters, model_name=None, featurizer_type='hs', cuda=False,
-                lr=1e-4, batch_size=100, num_epochs=50, weight_decay=1e-3, plot_freq=10000,
-                 checkpoint_freq=100000):
+                lr=1e-4, batch_size=100, num_epochs=10, weight_decay=1e-3, plot_freq=10000,
+                 checkpoint_freq=20000):
         self.f = CardFeaturizer1(hdim, n_filters, cuda=cuda)
         self.data = {'train': {}, 'val': {}, 'test': {}}
-        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')
-        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')
+        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')[:8]
+        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')[:3]
         self.test_paths = g.glob(HS_DATA_TEST_PATH + '*t')
         self.cuda = cuda
         self.save_path = initialize_save_folder(HS_DATA_PATH)
+        self.global_step = 0
 
         self.lr = lr
         self.batch_size = batch_size
@@ -336,9 +337,11 @@ class FeaturizerManager():
 
             for i in range(0, len(train_dataset), self.batch_size):
                 batch_i = i // self.batch_size
+                self.global_step += 1
+
                 # init grad
                 optimizer.zero_grad()
-                
+
                 # sample batch
                 hand = variable(x_hand_train[i:i+self.batch_size], cuda=self.cuda)
                 board = variable(x_board_train[i:i+self.batch_size], cuda=self.cuda)
@@ -357,7 +360,7 @@ class FeaturizerManager():
 
                 loss.backward()
                 optimizer.step()
-                if (batch_i + 1) % self.plot_freq == 0:
+                if self.global_step % self.plot_freq == 0:
                     #display.clear_output(wait=True)
 
                     # test loss on a random test sample
@@ -395,7 +398,7 @@ class FeaturizerManager():
                     fig.savefig('{}loss_e{}b{}'.format(self.plot_path, epoch_i, batch_i), ppi=300, bbox_inches='tight')
                     plt.close()
 
-                if (batch_i + 1) % self.checkpoint_freq == 0:
+                if self.global_step % self.checkpoint_freq == 0:
                     # saving checkpoints
                     self.save_model(self.model_path, epoch_i, batch_i)
         # after training is over, we save the model

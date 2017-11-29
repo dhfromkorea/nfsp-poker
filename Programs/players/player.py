@@ -157,8 +157,8 @@ class NeuralFictitiousPlayer(Player):
         rewards = create_reward_var(exps[:, 2])
         next_states = create_state_var(exps[:, 3])
         if self.is_training:
-            Q_targets = rewards + GAMMA * self.Q_target.forward(*next_states)[:, 0].squeeze()
-            Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
+            Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
+            #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
             td_deltas = self.Q.train(states, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 

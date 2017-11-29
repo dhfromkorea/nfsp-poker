@@ -19,12 +19,12 @@ SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + FEATURIZER_N
 
 if __name__ == '__main__':
     # TODO: arg parser
-    cuda = True
+    cuda = False
     verbose = True
 
-    #simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
-    #                     p1_strategy='NFSP', p2_strategy='NFSP')
-    #simulator.start()
-    fm = FeaturizerManager(hdim=50, n_filters=10, cuda=cuda)
-    fm.train_featurizer1()
-    
+    simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
+                         p1_strategy='NFSP', p2_strategy='NFSP')
+    simulator.start()
+    #fm = FeaturizerManager(hdim=50, n_filters=10, cuda=cuda)
+    #fm.train_featurizer1()
+
