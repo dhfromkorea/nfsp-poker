@@ -15,6 +15,17 @@ def create_state_variable_batch():
     f = np.vectorize(create_state_variable)
     return f
 
+def create_state_vars_batch(states_batch):
+    '''
+    states_batch: np array of batch_size x number of features in state
+    '''
+    dtype = t.FloatTensor
+    num_features = states_batch.shape[1]
+    state_vars = []
+    for i in range(num_features):
+        var = Variable(t.from_numpy(states_batch[:, i]).type(dtype), requires_grad=False)
+        state_vars.append(var)
+    return state_vars
 
 def build_state(player, board, pot, actions, b_round, opponent_stack, big_blind, as_variable=True):
     # @todo: add opponent modeling
@@ -39,6 +50,7 @@ def build_state(player, board, pot, actions, b_round, opponent_stack, big_blind,
     :param as_variable: torch
     :return:
     """
+    #import pdb;pdb.set_trace()
     hand = cards_to_array(player.cards)
     board = cards_to_array(board)
     pot_ = np.array([pot])

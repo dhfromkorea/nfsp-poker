@@ -41,6 +41,7 @@ class ReplayBufferManager:
             raise Exception('Experience Replay target not supported')
 
 
+        self.batch_size = batch_size
         self._last_step_buffer = None
 
     @staticmethod
@@ -98,9 +99,11 @@ class ReplayBufferManager:
             exp_ids: experience ids required for updates later
         '''
         if self.target == 'rl':
-            return self._buffer.sample(global_step)
+            exps, imp_weights, exp_ids = self._buffer.sample(global_step)
+            return self._batch_stack(exps), imp_weights, exp_ids
         else:
-            return self._buffer.sample()
+            exps = self._buffer.sample()
+            return self._batch_stack(exps)
 
 
     def update(self, exp_ids, deltas):
@@ -112,4 +115,47 @@ class ReplayBufferManager:
         if self.target == 'rl':
             self._buffer.update_priority(exp_ids, deltas)
 
+    def _batch_stack(self, exps):
+        exps_batch = []
+        # suboptimal performance
+        # let's refactor later
+        if self.target == 'rl':
+            # TODO: refactor this
+            states = exps[:, 0]
+            actions = np.stack(exps[:, 1])
+            rewards = exps[:, 2]
+            next_states = exps[:, 3]
+            time_steps = exps[:, 4]
+            num_features = 11
+            state_batch = [[] for _ in range(num_features)]
+            for s in states:
+                for i, feature in enumerate(s):
+                    state_batch[i].append(feature)
+            state_batch = [np.concatenate(s) for s in state_batch]
 
+            next_state_batch = [[] for _ in range(num_features)]
+            for s in next_states:
+                for i, feature in enumerate(s):
+                    next_state_batch[i].append(feature)
+            next_state_batch = [np.concatenate(s) for s in next_state_batch]
+
+            exps_batch.append(state_batch)
+            exps_batch.append(actions)
+            exps_batch.append(rewards)
+            exps_batch.append(next_state_batch)
+            exps_batch.append(time_steps)
+
+        elif self.target == 'sl':
+            states = exps[:, 0]
+            actions = exps[:, 1]
+            for i in range(self.batch_size):
+                # state
+                # hack: needed to drop 1 extra dim
+                states[i][0] = states[i][0].squeeze()
+                s_batch[i] = np.array(states[i])
+                # action
+            exps_batch.append(s_batch)
+            exps_batch.append(actions)
+        else:
+            raise Exception('Unsuported Experience Replay Target')
+        return exps_batch

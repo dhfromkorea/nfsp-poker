@@ -1,9 +1,11 @@
 from torch.autograd import Variable
 import torch as t
+import numpy as np
 
 from experience_replay.experience_replay import ReplayBufferManager
 from game.game_utils import Action
-from game.state import build_state, create_state_variable_batch
+from game.utils import variable
+from game.state import build_state, create_state_variable_batch, create_state_vars_batch
 from game.action import create_action_variable_batch
 from game.reward import create_reward_variable_batch
 from game.config import BLINDS
@@ -149,15 +151,18 @@ class NeuralFictitiousPlayer(Player):
         # sample a minibatch of experiences
         gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
         exps, imp_weights, ids = self.memory_rl.sample(global_step)
-        states = create_state_var(exps[:, 0])
-        actions = create_action_var(exps[:, 1])
+        #states = create_state_var(exps[0])
+        state_vars = [variable(s) for s in exps[0]]
+        # 4 x 11 each column is torch variable
+        action_vars = variable(exps[1])
         # TODO: need to fix this error
         # currently there's an issue with state and reward variables
         # in terms of their types and so on.
-        rewards = create_reward_var(exps[:, 2])
-        next_states = create_state_var(exps[:, 3])
+        rewards = variable(exps[2].astype(np.float32))
+        next_state_vars = [variable(s) for s in exps[3]]
         if self.is_training:
-            Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
+            import pdb;pdb.set_trace()
+            Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_state_vars)[0].squeeze()
             #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
             td_deltas = self.Q.train(states, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
@@ -168,8 +173,9 @@ class NeuralFictitiousPlayer(Player):
        '''
        if self.is_training:
            exps = self.memory_sl.sample(global_step)
-           states = create_state_var(exps[:, 0])
-           actions = create_action_var(exps[:, 1])
+           state_vars = [variable(s) for s in exps[0]]
+            # 4 x 11 each column is torch variable
+           action_vars = variable(exps[1])
            self.pi.train(states, actions)
 
     def remember(self, exp):
