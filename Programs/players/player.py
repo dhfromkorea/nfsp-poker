@@ -159,7 +159,7 @@ class NeuralFictitiousPlayer(Player):
         if self.is_training:
             Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
             #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
-            td_deltas = self.Q.train(states, Q_targets, imp_weights)
+            td_deltas = self.Q.learn(states, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 
     def _learn_sl(self, global_step):
@@ -170,7 +170,7 @@ class NeuralFictitiousPlayer(Player):
            exps = self.memory_sl.sample(global_step)
            states = create_state_var(exps[:, 0])
            actions = create_action_var(exps[:, 1])
-           self.pi.train(states, actions)
+           self.pi.learn(states, actions)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)

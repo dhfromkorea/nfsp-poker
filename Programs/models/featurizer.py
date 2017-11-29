@@ -289,7 +289,7 @@ class FeaturizerManager():
                     HS, probas = self.f.forward(hand, board)
                     HS = FeaturizerManager.clip(HS)
                     # why train again here with test data??? cheating?
-                    self.f.train()
+                    self.f.learn()
                     pred_hs = t.log(HS/(1-HS))
                     mse = (target_hs - pred_hs)**2
                     kl_div = t.sum(target_probas*((target_probas>0).float())*t.log(target_probas/probas), -1)
@@ -377,7 +377,7 @@ class FeaturizerManager():
                     # QUESTION: why add 1e-5?
                     HS = self.f.forward(hand, board)[0].squeeze().float() + 1e-5
                     # QUESTION: why train on validate data? do we even have train member function?
-                    self.f.train()
+                    self.f.learn()
                     pred = t.log(HS/(1-HS))
                     loss = (target - pred)**2
                     loss = t.sum(loss)
