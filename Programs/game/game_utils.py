@@ -382,7 +382,6 @@ def sample_action(idx, probabilities):
     try:
         return idx[sample_categorical(probabilities)]
     except:
-        import pdb;pdb.set_trace()
         raise ValueError(probabilities)
 
 
@@ -548,7 +547,10 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
                 return [-1, 1] + list(range(3, max_bet_bucket+1)) + [14]
         else:  # after preflop, you are SB, it is your first move. You can either check or bet at least the BB
             if player.stack > 2:  # if you have enough money
-                return [0] + list(range(2, max_bet_bucket+1)) + [14]
+                if Action.BET_BUCKETS[max_bet_bucket][0] < player.stack:
+                    return [0] + list(range(2, max_bet_bucket+1)) + [14]
+                else:
+                    return [0] + list(range(2, max_bet_bucket)) + [14]  # in that case betting in max_bet_bucket is an all-in and not a bet
             else:  # if you have at most a BB
                 return [0, 14]
 

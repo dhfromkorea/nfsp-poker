@@ -161,10 +161,9 @@ class NeuralFictitiousPlayer(Player):
         rewards = variable(exps[2].astype(np.float32))
         next_state_vars = [variable(s) for s in exps[3]]
         if self.is_training:
-            import pdb;pdb.set_trace()
             Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_state_vars)[0].squeeze()
             #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
-            td_deltas = self.Q.train(states, Q_targets, imp_weights)
+            td_deltas = self.Q.learn(states, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 
     def _learn_sl(self, global_step):

@@ -1,7 +1,7 @@
 from game.game_utils import blinds, bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
 from players.strategies import strategy_RL, strategy_random
 from players.player import Player, NeuralFictitiousPlayer
-from models.q_network import QNetwork, PiNetwork
+from models.q_network import QNetwork, PiNetwork, CardFeaturizer1
 from nose.tools import *
 
 
@@ -12,7 +12,8 @@ def get_actions():
 def get_players():
     NUM_HIDDEN_LAYERS = 10
     NUM_ACTIONS = 14
-    Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS)
+    f = CardFeaturizer1(NUM_HIDDEN_LAYERS, 20)
+    Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, f)
     players = [Player(0, strategy_RL(Q, True), 100, verbose=True, name='SB'),
                Player(1, strategy_RL(Q, True), 100, verbose=True, name='DH')]
     return players
@@ -377,7 +378,7 @@ def test_authorized_actions_buckets():
     b_round = 1
     opponent_side_pot = players[1].side_pot
     authorized_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
-    assert authorized_actions == [0] + list(range(2, 15))
+    assert authorized_actions == [0] + list(range(2, 15)), authorized_actions
 
     # flop, SB checked, BB all in
     actions = get_actions()
@@ -504,6 +505,23 @@ def test_authorized_actions_buckets():
     authorized_actions = authorized_actions_buckets(players[0], actions, b_round, opponent_side_pot)
     # you can either check, or minraise (i.e bet 2, i.e bucket 2), raise (to at most 52, i.e bucket 11) You can also go all in
     assert authorized_actions == [-1, 14], authorized_actions
+
+    # turn, you have 20 left
+    actions = get_actions()
+    players = get_players()
+    players[0].stack = 20
+    players[1].stack = 200 - 20 - 26 - 15 - 46
+    pot = 2*(26 + 15 + 46)
+    players[1].is_dealer = True
+    b_round = 2
+    opponent_side_pot = 0
+    actions[0][0].append(Action('call', 24))
+    actions[0][1].append(Action('raise', 25))
+    actions[1][0].append(Action('bet', 15))
+    actions[1][0].append(Action('call', 46))
+    actions[1][1].append(Action('raise', 46))
+    authorized_actions = authorized_actions_buckets(players[0], actions, b_round, opponent_side_pot)
+    assert authorized_actions == [0] + list(range(2, 8)) + [14], authorized_actions
 
 
 def test_all_actions_preflop():

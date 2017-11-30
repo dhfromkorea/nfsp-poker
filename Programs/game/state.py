@@ -50,13 +50,15 @@ def build_state(player, board, pot, actions, b_round, opponent_stack, big_blind,
     :param as_variable: torch
     :return:
     """
-    #import pdb;pdb.set_trace()
+    print(type(pot))
+    if isinstance(pot, list):
+        import pdb;pdb.set_trace()
     hand = cards_to_array(player.cards)
     board = cards_to_array(board)
     pot_ = np.array([pot])
     stack_ = np.array([player.stack])
     opponent_stack_ = np.array([opponent_stack])
-    blinds_ = np.array(big_blind)
+    blinds_ = np.array([big_blind])
     dealer = np.array([player.id if player.is_dealer else 1 - player.id])
     preflop_plays, flop_plays, turn_plays, river_plays = actions_to_array(actions)
     # hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays]

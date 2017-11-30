@@ -19,7 +19,7 @@ from torch.autograd import Variable
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
-NUM_HIDDEN_LAYERS = 10
+NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 14
 P1_ETA = 0.1
 P2_ETA = 0.1
