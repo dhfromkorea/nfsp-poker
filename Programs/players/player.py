@@ -155,8 +155,8 @@ class NeuralFictitiousPlayer(Player):
 
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
-            td_deltas = self.strategy._Q.train(state_vars, Q_targets, imp_weights)
-            self.memory_rl.update(ids, td_deltas)
+            td_deltas = self.strategy._Q.learn(state_vars, Q_targets, imp_weights)
+            self.memory_rl.update(ids, td_deltas.data.numpy())
 
     def _learn_sl(self, global_step):
        '''
@@ -167,7 +167,7 @@ class NeuralFictitiousPlayer(Player):
            state_vars = [variable(s) for s in exps[0]]
             # 4 x 11 each column is torch variable
            action_vars = variable(exps[1])
-           self.strategy._pi.train(state_vars, action_vars)
+           self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)

@@ -162,7 +162,7 @@ class StrategyNFSP():
             idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
             valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])
             valid_action_probs /= t.sum(valid_action_probs)
-            action = bucket_to_action(sample_action(idx, valid_action_probs), actions, b_round, player, opponent_side_pot)
+            action = bucket_to_action(sample_action(idx, valid_action_probs.data.numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = True
         return action, self.is_Q_used
 
