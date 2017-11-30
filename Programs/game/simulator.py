@@ -21,8 +21,8 @@ INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
-P1_ETA = 0.1
-P2_ETA = 0.1
+P1_ETA = 0.9
+P2_ETA = 0.9
 
 strategy_function_map = {'random': strategy_RL, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
@@ -185,7 +185,7 @@ class Simulator:
         # initialize experiences for player 1 and 2
         self.experiences[0] = self._make_new_exp()
         self.experiences[1] = self._make_new_exp()
-        # WINNERS GETS THE MONEY.
+        # WINNER GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
         if not self.fold_occured:
@@ -199,10 +199,10 @@ class Simulator:
         # KEEP TRACK OF TRANSITIONS
         self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
                                                    self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step)
+                                                   self.global_step, self.b_round)
         self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
                                                    self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step)
+                                                   self.global_step, self.b_round)
 
         self.players[0].remember(self.experiences[0])
         self.players[1].remember(self.experiences[1])
@@ -279,11 +279,11 @@ class Simulator:
         # RL : Store experiences in memory. Just for the agent
         self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
                                                    self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step)
+                                                   self.global_step, self.b_round)
 
         self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
                                                    self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step)
+                                                   self.global_step, self.b_round)
         self.players[0].remember(self.experiences[0])
         self.players[1].remember(self.experiences[1])
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
@@ -298,7 +298,8 @@ class Simulator:
             self._handle_call()
 
         if self.action.type == 'raise':
-            value = self._handle_raise()
+            value = self.action.total
+            # value = self._handle_raise()
         else:
             value = self.action.value
         # update pot
@@ -397,6 +398,7 @@ class Simulator:
 
         if self.verbose:
             if not self.split:
+                assert self.winner in [0, 1], (self.winner, self.split, self.hand_0, self.hand_1)
                 print(self.players[0].name + ' cards : ' + str(self.players[0].cards)
                       + ' and score: ' + str(self.hand_0[0]))
                 print(self.players[1].name + ' cards : ' + str(self.players[1].cards)
@@ -479,12 +481,12 @@ class Simulator:
         self.actions[self.b_round][self.player.id].append(self.action)
 
     def make_experience(self, player, action, new_game, board, pot, dealer, actions,
-                        big_blind, global_step):
+                        big_blind, global_step, b_round):
         opponent_stack = self.players[1 - player.id].stack
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        reward_ = -action.value
+        reward_ = -action.value - (b_round==0)*((dealer==player.id)*big_blind/2 + (dealer!=player.id)*big_blind)
         step_ = global_step
 
         # we need to inform replay manager of some extra stuff

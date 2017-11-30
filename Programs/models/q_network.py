@@ -170,7 +170,7 @@ class SharedNetwork(t.nn.Module):
 
 class QNetwork(t.nn.Module):
     def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, pi_network=None,
-                 learning_rate=0.01):
+                 learning_rate=1e-3):
         super(QNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -193,7 +193,7 @@ class QNetwork(t.nn.Module):
         self.fc28 = fc(hdim, n_actions)
 
         self.criterion = nn.MSELoss()
-        self.optim = optim.SGD(self.parameters(), lr=learning_rate)
+        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         # import pdb; pdb.set_trace()
@@ -227,7 +227,7 @@ class QNetwork(t.nn.Module):
 
 
 class PiNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None, learning_rate = 0.01):
+    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None, learning_rate=1e-3):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -246,7 +246,7 @@ class PiNetwork(t.nn.Module):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
-        self.optim = optim.SGD(self.parameters(), lr=learning_rate)        
+        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
@@ -270,10 +270,6 @@ class PiNetwork(t.nn.Module):
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         loss = nn.CrossEntropyLoss()
-        print('pi_preds')
-        print(pi_preds)
-        print('actions')
-        print(actions)
-        output = loss(pi_preds, one_hot_encode_actions(actions))
+        output = loss(pi_preds, (1+one_hot_encode_actions(actions)).long())
         output.backward()
         self.optim.step()

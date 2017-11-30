@@ -10,11 +10,11 @@ from game.action import create_action_variable_batch
 from game.reward import create_reward_variable_batch
 from game.config import BLINDS
 
-
 # define some utility functions
 create_state_var = create_state_variable_batch()
 create_action_var = create_action_variable_batch()
 create_reward_var = create_reward_variable_batch()
+
 
 # define RL hyperparameters here
 # chosen to match the NSFP paper
@@ -23,6 +23,7 @@ class Player:
     '''
     default player bot
     '''
+
     def __init__(self, pid, strategy, stack, name=None, verbose=False):
         self.id = pid
         self.cards = []
@@ -55,7 +56,6 @@ class Player:
             except IndexError:
                 raise IndexError((b_round, actions))
 
-        #import pdb; pdb.set_trace()
         action = self.strategy(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS, verbose=self.verbose)
         if self.stack - action.value <= 0:
             self.is_all_in = True
@@ -82,6 +82,7 @@ class NeuralFictitiousPlayer(Player):
     '''
     NFSP
     '''
+
     def __init__(self, pid, strategy, stack, name,
                  learn_start, memory_rl_conf={}, memory_sl_conf={},
                  is_training=True, learning_rate=1e-3, gamma=.95,
@@ -116,14 +117,11 @@ class NeuralFictitiousPlayer(Player):
         self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_conf, learn_start=learn_start)
         self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_conf, learn_start=learn_start)
 
-
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
         '''
         TODO: check the output action dimension
         '''
 
-        #state = [self, board, np.array([self.stack]), actions, b_round, np.array([opponent_stack]), blinds[0]]
-        #state_ = build_state(*state, as_variable=True)
         action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds)
         return action
 
@@ -159,15 +157,15 @@ class NeuralFictitiousPlayer(Player):
             self.memory_rl.update(ids, td_deltas.data.numpy())
 
     def _learn_sl(self, global_step):
-       '''
+        '''
        reservior sampling from M_sl
        '''
-       if self.is_training:
-           exps = self.memory_sl.sample(global_step)
-           state_vars = [variable(s) for s in exps[0]]
+        if self.is_training:
+            exps = self.memory_sl.sample(global_step)
+            state_vars = [variable(s) for s in exps[0]]
             # 4 x 11 each column is torch variable
-           action_vars = variable(exps[1])
-           self.strategy._pi.learn(state_vars, action_vars)
+            action_vars = variable(exps[1])
+            self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)
@@ -176,5 +174,3 @@ class NeuralFictitiousPlayer(Player):
             # exp should be just (s,a)
             simple_exp = (exp['s'], exp['a'])
             self.memory_sl.store_experience(simple_exp)
-
-

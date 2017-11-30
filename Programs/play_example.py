@@ -23,4 +23,3 @@ if __name__ == '__main__':
     simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
                           p1_strategy='NFSP', p2_strategy='NFSP')
     simulator.start()
-

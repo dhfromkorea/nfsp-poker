@@ -77,7 +77,7 @@ def agreement(actions, betting_round):
         return True
     # 1 check 1 bet
     if (actions[betting_round][0][-1].type == 'check' and actions[betting_round][1][-1].type == 'bet') or (actions[betting_round][0][-1].type == 'bet' and actions[betting_round][1][-1].type == 'check'):
-        return True
+        return False
     # 2 checks
     if actions[betting_round][0][-1].type == 'check' and actions[betting_round][1][-1].type == 'check':
         return True
@@ -463,7 +463,11 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
             min_bet_bucket = 2
             max_bet_bucket = get_max_bet_bucket(player.stack)
             assert max_bet_bucket != 14
-            return [check_bucket] + list(range(min_bet_bucket, max_bet_bucket+1)) + [14]
+            # bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot).total >= player.stack
+            if min_bet_bucket < max_bet_bucket or ((min_bet_bucket == max_bet_bucket) and (Action.BET_BUCKETS[min_bet_bucket][1] > Action.BET_BUCKETS[min_bet_bucket][0])):
+                return [check_bucket] + list(range(min_bet_bucket, max_bet_bucket+1)) + [14]
+            else:
+                return [check_bucket] + [14]
 
         # what if it called?
         elif last_action_taken_by_opponent.type == 'call':
@@ -534,7 +538,7 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
             call_bucket = get_call_bucket(opponent_side_pot - player.side_pot)
             max_bet_bucket = get_max_bet_bucket(player.stack)
             if max_bet_bucket <= call_bucket:
-                if bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot).total == player.stack:
+                if bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot).total >= player.stack:
                     return [-1, 14]
                 else:
                     return [-1, call_bucket]
@@ -620,6 +624,9 @@ def one_hot_encode_actions(actions):
     actions_buckets[indices==5] = -1  # fold
     for bucket_idx in range(1, 14):
         indicator = lambda x: bucket_idx*(x>=Action.BET_BUCKETS[bucket_idx][0]).float()*((x<=Action.BET_BUCKETS[bucket_idx][1]).float())
-        actions_buckets[indices != 0] += indicator(values[indices != 0])
-        actions_buckets[indices != 5] += indicator(values[indices != 5])
+        mask = (indices != 0)*(indices != 5)*(indices != 4)
+        actions_buckets[mask] += indicator(values[mask])
+        # actions_buckets[indices != 0] += indicator(values[indices != 0])
+        # actions_buckets[indices != 5] += indicator(values[indices != 5])
+        # actions_buckets[indices != 4] += indicator(values[indices != 4])
     return actions_buckets
