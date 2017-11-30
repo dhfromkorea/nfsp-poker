@@ -82,7 +82,11 @@ class NeuralFictitiousPlayer(Player):
     '''
     NFSP
     '''
-    def __init__(self, pid, strategy, stack, name, is_training=True, learning_rate=1e-3, gamma=.95, target_update=1000, verbose=False, cuda=False):
+    def __init__(self, pid, strategy, stack, name,
+                 learn_start, memory_rl_conf={}, memory_sl_conf={},
+                 is_training=True, learning_rate=1e-3, gamma=.95,
+                 target_update=1000, verbose=False, cuda=False):
+        # we may not need this inheritance
         super().__init__(pid, strategy, stack)
         self.cuda = cuda
 
@@ -108,19 +112,9 @@ class NeuralFictitiousPlayer(Player):
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
         # experience replay
-        rl_conf = {'size': 50,
-                'learn_start': 10,
-                'partition_num': 5,
-                'total_step': 100,
-                'batch_size': 4
-                }
-        self.learn_start = rl_conf['learn_start']
-        self.memory_rl = ReplayBufferManager(target='rl', **rl_conf)
-        sl_conf = {
-                   'size': 10001,
-                   'batch_size': 4
-                  }
-        self.memory_sl = ReplayBufferManager(target='sl', **sl_conf)
+        self.learn_start = learn_start
+        self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_conf, learn_start=learn_start)
+        self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_conf, learn_start=learn_start)
 
 
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
@@ -148,22 +142,19 @@ class NeuralFictitiousPlayer(Player):
             self.strategy.sync_target_network()
 
     def _learn_rl(self, global_step):
+        '''
+        '''
         # sample a minibatch of experiences
         gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
         exps, imp_weights, ids = self.memory_rl.sample(global_step)
-        #states = create_state_var(exps[0])
         state_vars = [variable(s) for s in exps[0]]
-        # 4 x 11 each column is torch variable
         action_vars = variable(exps[1])
         imp_weights = variable(imp_weights)
-        # TODO: need to fix this error
-        # currently there's an issue with state and reward variables
-        # in terms of their types and so on.
         rewards = variable(exps[2].astype(np.float32))
         next_state_vars = [variable(s) for s in exps[3]]
+
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
-            #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
             td_deltas = self.strategy._Q.train(state_vars, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 
@@ -176,7 +167,7 @@ class NeuralFictitiousPlayer(Player):
            state_vars = [variable(s) for s in exps[0]]
             # 4 x 11 each column is torch variable
            action_vars = variable(exps[1])
-           self.pi.train(states, actions)
+           self.strategy._pi.train(state_vars, action_vars)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)

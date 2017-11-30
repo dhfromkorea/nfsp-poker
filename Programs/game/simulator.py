@@ -43,17 +43,16 @@ class Simulator:
     TODO: couple players with networks
     """
 
-    def __init__(self, verbose, featurizer_path, cuda=False, p1_strategy='RL', p2_strategy='RL'):
+    def __init__(self, featurizer_path,
+                       learn_start=100,
+                       verbose=False,
+                       cuda=False,
+                       p1_strategy='RL',
+                       p2_strategy='RL'):
         # define msc.
         self.verbose = verbose
 
         # define other non-game mechanisms like players
-
-        '''
-        TODO: not ready fully yet
-        self.players = [NeuralFictitiousPlayer(pid=0, name='SB'),
-                        NeuralFictitiousPlayer(pid=1, name='DH')]
-        '''
         featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
         Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
@@ -61,7 +60,9 @@ class Simulator:
         Pi1 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1:Pi1}
-        self.players = self._generate_player_instances(p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose)
+        self.players = self._generate_player_instances(p1_strategy, p2_strategy,
+                                                       Q_networks, Pi_networks,
+                                                       learn_start, verbose)
 
         # define battle-level game states here
         self.new_game = True
@@ -91,7 +92,8 @@ class Simulator:
             return self.games['winnings']
 
 
-    def _generate_player_instances(self, p1_strategy, p2_strategy, Q_networks, Pi_networks, verbose):
+    def _generate_player_instances(self, p1_strategy, p2_strategy,
+                                   Q_networks, Pi_networks, learn_start, verbose):
         players = []
         p_id = 0
         #Strategies that do not require Q
@@ -105,12 +107,15 @@ class Simulator:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
                 p_id += 1
             elif strategy in NFSP_strategies:
-                players.append(NeuralFictitiousPlayer(p_id, StrategyNFSP(Q_networks[p_id],Pi_networks[p_id],P1_ETA), INITIAL_MONEY, p_names[p_id], verbose = verbose ))
+                strategy = StrategyNFSP(Q_networks[p_id], Pi_networks[p_id], P1_ETA)
+                nfp = NeuralFictitiousPlayer(pid=p_id,
+                                             strategy=strategy,
+                                             stack=INITIAL_MONEY,
+                                             name=p_names[p_id],
+                                             learn_start=learn_start,
+                                             verbose=verbose)
+                players.append(nfp)
                 p_id += 1
-#        [
-#            Player(0, strategy_RL(Q0, True), INITIAL_MONEY, name='SB', verbose=verbose),
-#            Player(1, strategy_RL(Q1, True), INITIAL_MONEY, name='DH', verbose=verbose)
-#        ]
         return players
 
     def _prepare_new_game(self):

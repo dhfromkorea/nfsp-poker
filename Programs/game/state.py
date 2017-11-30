@@ -50,8 +50,6 @@ def build_state(player, board, pot, actions, opponent_stack, big_blind, as_varia
     :param as_variable: torch
     :return:
     """
-    print('pot', type(pot))
-    print('ops', type(opponent_stack))
     hand = cards_to_array(player.cards)
     board = cards_to_array(board)
     pot_ = np.array([pot])
@@ -60,7 +58,6 @@ def build_state(player, board, pot, actions, opponent_stack, big_blind, as_varia
     blinds_ = np.array([big_blind])
     dealer = np.array([player.id if player.is_dealer else 1 - player.id])
     preflop_plays, flop_plays, turn_plays, river_plays = actions_to_array(actions)
-    # hand, board, pot, stack, opponent_stack, blinds, dealer, preflop_plays, flop_plays, turn_plays, river_plays]
 
     state = [hand, board, pot_, stack_, opponent_stack_, blinds_, dealer, preflop_plays, flop_plays, turn_plays, river_plays]
     state = [np.expand_dims(s, axis=0) for s in state]
