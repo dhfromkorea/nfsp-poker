@@ -13,7 +13,7 @@ from experience_replay import binary_heap
 
 
 class RankExperienceReplay(object):
-    # TODO: save the experience in a pickle
+    # TODO: save the experience in a pickle?
     def __init__(self, conf):
         self.size = conf['size']
         self.replace_flag = conf['replace_old'] if 'replace_old' in conf else True
@@ -48,7 +48,6 @@ class RankExperienceReplay(object):
         partition_num = 1
         # each part size
         partition_size = math.floor(self.size / n_partitions)
-
         for n in range(partition_size, self.size + 1, partition_size):
             if self.learn_start <= n <= self.priority_size:
                 distribution = {}
@@ -168,8 +167,12 @@ class RankExperienceReplay(object):
         rank_list = []
         # sample from k segments
         for n in range(1, self.batch_size + 1):
-            index = random.randint(distribution['strata_ends'][n] + 1,
-                                   distribution['strata_ends'][n + 1])
+            # TODO: fix this hack
+            try:
+                index = random.randint(distribution['strata_ends'][n] + 1,
+                                       distribution['strata_ends'][n + 1])
+            except ValueError:
+                index = distribution['strata_ends'][n] + 1
             rank_list.append(index)
 
         # beta, increase by global_step, max 1
