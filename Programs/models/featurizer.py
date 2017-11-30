@@ -22,7 +22,7 @@ from game.errors import LoadModelError, NotImplementedError
 # 60% 20% 20% picked arbitrarily
 HS_DATA_PATH = 'data/hand_eval/'
 HS_DATA_TRAIN_PATH = HS_DATA_PATH + 'train/'
-HS_DATA_VAL_PATH = HS_DATA_PATH + 'val/'
+HS_DATA_VAL_PATH = HS_DATA_PATH + 'valid/'
 # should never touch this unless we feel good about the model
 HS_DATA_TEST_PATH = HS_DATA_PATH + 'test/'
 PLOT_PATH = 'img/'
@@ -35,12 +35,13 @@ class FeaturizerManager():
     '''
     def __init__(self, hdim, n_filters, model_name=None, featurizer_type='hs', cuda=False,
                 lr=1e-4, batch_size=100, num_epochs=10, weight_decay=1e-3, plot_freq=10000,
-                 checkpoint_freq=20000):
+                 checkpoint_freq=20000, verbose=False):
+        self.verbose = verbose
         self.f = CardFeaturizer1(hdim, n_filters, cuda=cuda)
         self.data = {'train': {}, 'val': {}, 'test': {}}
-        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*.p')[:8]
-        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')[:3]
-        self.test_paths = g.glob(HS_DATA_TEST_PATH + '*t')
+        self.train_paths = g.glob(HS_DATA_TRAIN_PATH +'*')
+        self.val_paths = g.glob(HS_DATA_VAL_PATH + '*')
+        self.test_paths = g.glob(HS_DATA_TEST_PATH + '*')
         self.cuda = cuda
         self.save_path = initialize_save_folder(HS_DATA_PATH)
         self.global_step = 0
@@ -74,7 +75,7 @@ class FeaturizerManager():
         return data
 
 
-    def load_data(self, includes_val=True, includes_test=False):
+    def load_data(self, includes_val, includes_test):
         train_data = self._load_data(self.train_paths)
         val_data = None
         test_data = None
@@ -135,17 +136,11 @@ class FeaturizerManager():
         return x_hand, x_board, y_hs, y_probas_combi
 
 
-    def _preprocess_data(self, includes_val=True, includes_test=False):
-        train_dataset, val_dataset, test_dataset = self.load_data(True, True)
-
-        print(len(train_dataset), len(test_dataset), len(val_dataset))
+    def _preprocess_data(self, includes_val, includes_test):
+        train_dataset, val_dataset, test_dataset = self.load_data(includes_val, includes_test)
 
         x_hand_train, x_board_train, y_hs_train, y_probas_combi_train \
                 = self.parse_dataset(train_dataset)
-        x_hand_val, x_board_val, y_hs_val, y_probas_combi_val \
-                = self.parse_dataset(val_dataset)
-        x_hand_test, x_board_test, y_hs_test, y_probas_combi_test \
-                = self.parse_dataset(test_dataset)
 
         scaler = StandardScaler()
         self.data['train']['x_hand'] = x_hand_train
@@ -154,12 +149,16 @@ class FeaturizerManager():
         self.data['train']['y_probs_combi'] = y_probas_combi_train
 
         if includes_val:
+            x_hand_val, x_board_val, y_hs_val, y_probas_combi_val \
+                    = self.parse_dataset(val_dataset)
             self.data['val']['x_hand'] = x_hand_val
             self.data['val']['x_board'] = x_board_val
             self.data['val']['y_hs'] = scaler.transform(y_hs_val)
             self.data['val']['y_probs_combi'] = y_probas_combi_val
 
         if includes_test:
+            x_hand_test, x_board_test, y_hs_test, y_probas_combi_test \
+                    = self.parse_dataset(test_dataset)
             self.data['test']['x_hand'] = x_hand_test
             self.data['test']['x_board'] = x_board_test
             self.data['test']['y_hs'] = scaler.transform(y_hs_test)
@@ -168,7 +167,6 @@ class FeaturizerManager():
         #print(x_hand_train, x_board_train, y_hs_train, y_probas_combi_train)
         #print(x_hand_val, x_board_val, y_hs_val, y_probas_combi_val)
         #print(x_hand_test, x_board_test, y_hs_test, y_probas_combi_test)
-
         #count, bins, _ = plt.hist(y_hs_train, bins=50)
         return train_dataset, val_dataset, test_dataset
 
@@ -221,98 +219,6 @@ class FeaturizerManager():
         return weight
 
 
-    def train_featurizer11(self):
-        '''
-        does not work at the moment
-        '''
-        print('hold your horses! we are processing the data')
-        raise NotImplementedError
-
-        train_dataset, val_dataset, test_dataset = self._preprocess_data()
-
-        # get variables
-        print('#params: ', np.sum([np.prod(p.data.cpu().numpy().shape) for p in self.f.parameters()]))
-        optimizer = t.optim.Adam(self.f.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-
-        for _ in range(self.num_epochs):
-            print('epoch', _)
-            # shuffle
-            d = self.data['train']
-            x_hand_train, x_board_train, y_hs_train, y_probas_combi_train \
-          = shuffle(d['x_hand'], d['x_board'], d['y_hs'], d['y_probs_combi'])
-            # check if weights are NaN
-
-            for p in self.f.parameters():
-                if np.isnan(p.data.cpu().numpy()).sum()>0:
-                    raise ValueError('nan weights !')
-
-            for i in range(0, len(train_dataset), self.batch_size):
-                batch_i = i // self.batch_size
-                # check if BN var is NaN
-        #         check_bn_var_nan(self.f)
-                # sample batch
-                hand = variable(x_hand_train[i:i+self.batch_size], cuda=self.cuda)
-                board = variable(x_board_train[i:i+self.batch_size], cuda=self.cuda)
-                target_HS = variable(y_hs_train[i:i+self.batch_size], cuda=self.cuda)
-                target_probas = variable(y_probas_combi_train[i:i+self.batch_size], cuda=self.cuda)
-                if len(hand) != self.batch_size:
-                    break
-                # init grad
-                optimizer.zero_grad()
-                # pred
-                HS, probas = self.f.forward(hand, board)
-                HS = FeaturizerManager.clip(HS.squeeze())
-                pred_HS = t.log(HS/(1-HS)).squeeze()
-                mse = (target_HS - pred_HS)**2  # target aself.lready has this format (scaled logit)
-                kl_div = t.sum(target_probas[target_probas>0]*t.log(target_probas[target_probas>0]/probas[target_probas>0]), -1)
-                # KL divergence between target distribution and predicted distribution
-                loss = mse + kl_div
-        #         weights = inv_freq(target, count, bins)  # give more importance to rare samples
-        #         loss = loss * weights
-                loss = t.sum(loss)
-                self.train_losses.append(loss.data.numpy()[0]/self.batch_size)
-                loss.backward()
-        #       clip_gradients(f, 5)
-
-                optimizer.step()
-                if batch_i % self.plot_freq == 0:
-                    display.clear_output(wait=True)
-                    # test loss on a random test sample
-                    d = self.data['val']
-                    x_hand_val, x_board_val, y_hs_val, y_probas_combi_val \
-                    = shuffle(d['x_hand'], d['x_board'], d['y_hs'], d['y_probs_combi'])
-                    hand = variable(x_hand_val[:1000])
-                    board = variable(x_board_val[:1000])
-                    target_hs = variable(y_hs_val[:1000]).squeeze()
-                    target_probas = variable(y_probas_combi_val[:1000]).squeeze()
-                    self.f.eval()
-                    HS, probas = self.f.forward(hand, board)
-                    HS = FeaturizerManager.clip(HS)
-                    # why train again here with test data??? cheating?
-                    self.f.learn()
-                    pred_hs = t.log(HS/(1-HS))
-                    mse = (target_hs - pred_hs)**2
-                    kl_div = t.sum(target_probas*((target_probas>0).float())*t.log(target_probas/probas), -1)
-                    loss = t.sum(mse+kl_div)
-                    self.val_losses.append(loss.data.cpu().numpy()[0]/1000)
-                    # plot
-                    fig = plt.figure(figsize=(10,10))
-                    print(self.val_losses[-10:])
-                    plt.plot(self.val_losses)
-                    fig.savefig('{}val_loss_i{}'.format(self.plot_path, batch_i), ppi=300, bbox_inches='tight')
-                    plt.show()
-                    plt.close()
-
-                    fig = plt.figure(figsize=(10,10))
-                    self.train_losses_ = moving_avg(self.train_losses)
-                    print(self.train_losses_[-10:])
-                    plt.plot(self.train_losses_)
-                    fig.savefig('{}train_loss_i{}'.format(self.plot_path, batch_i), ppi=300, bbox_inches='tight')
-                    plt.show()
-                    plt.close()
-        # after training is over, we save the model
-        self.save_model(self.save_path)
-
     def train_featurizer1(self, includes_val=True, includes_test=False):
         '''
         TODO: train_featurizer11 and train_featurizer1 will be merged!
@@ -320,6 +226,17 @@ class FeaturizerManager():
         train_dataset, val_dataset, test_dataset =\
         self._preprocess_data(includes_val=includes_val, includes_test=includes_test)
         optimizer = t.optim.Adam(self.f.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
+        if self.verbose:
+            print('loaded train data size')
+            print(len(train_dataset))
+            if includes_val:
+                print('loaded validation data size')
+                print(len(val_dataset))
+            if includes_test:
+                print('loaded test data size')
+                print(len(test_dataset))
+            print('')
 
         for epoch_i in range(self.num_epochs):
             if epoch_i % self.plot_freq == 0:
@@ -375,34 +292,49 @@ class FeaturizerManager():
                     self.f.eval()
 
                     # QUESTION: why add 1e-5?
-                    HS = self.f.forward(hand, board)[0].squeeze().float() + 1e-5
+                    #HS_pred = self.f.forward(hand, board)[0].squeeze().float() + 1e-5
+                    HS_pred = self.f.forward(hand, board)[0].squeeze().float()
+                    HS = FeaturizerManager.clip(HS_pred)
                     # QUESTION: why train on validate data? do we even have train member function?
-                    self.f.learn()
+                    self.f.train()
                     pred = t.log(HS/(1-HS))
                     loss = (target - pred)**2
                     loss = t.sum(loss)
                     self.val_losses.append(loss.data.cpu().numpy()[0]/1000)
-                    self.train_losses_ = moving_avg(self.train_losses)
-                    print('validation loss')
-                    print(np.mean(self.val_losses[-10:]))
-                    print('train loss')
-                    print(np.mean(self.train_losses_[-10:]))
-                    print('')
+
+                    train_losses_ = moving_avg(self.train_losses)
+                    if self.verbose:
+                        print('validation loss')
+                        print(np.mean(self.val_losses))
+                        print('train loss')
+                        print(np.mean(train_losses_[-10:]))
+                        print('')
+
                     # plot
+
                     fig = plt.figure(figsize=(10,10))
-                    plt.plot(self.val_losses, label='validation loss')
-                    plt.plot(self.train_losses_, label='train loss')
+                    plt.plot(train_losses_, label='train loss (smoothed)')
                     plt.xlabel('Number of iterations')
                     plt.ylabel('Loss')
                     plt.legend(loc='best')
-                    fig.savefig('{}loss_e{}b{}'.format(self.plot_path, epoch_i, batch_i), ppi=300, bbox_inches='tight')
+                    fig.savefig('{}train_loss_e{}b{}'.format(self.plot_path, epoch_i, batch_i), ppi=300, bbox_inches='tight')
+                    plt.close()
+
+                    fig = plt.figure(figsize=(10,10))
+                    plt.plot(self.val_losses, label='validation loss')
+                    plt.xlabel('Number of iterations')
+                    plt.ylabel('Loss')
+                    plt.legend(loc='best')
+                    fig.savefig('{}val_loss_e{}b{}'.format(self.plot_path, epoch_i, batch_i), ppi=300, bbox_inches='tight')
                     plt.close()
 
                 if self.global_step % self.checkpoint_freq == 0:
                     # saving checkpoints
                     self.save_model(self.model_path, epoch_i, batch_i)
+                    print('saved model', 'epoch: ', epoch_i, 'batch: ', batch_i)
         # after training is over, we save the model
         self.save_model(self.model_path, epoch_i, batch_i, is_best=True)
+        print('saved final model', 'epoch: ', epoch_i, 'batch: ', batch_i)
 
     def plot(self):
         pass

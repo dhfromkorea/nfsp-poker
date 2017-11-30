@@ -10,9 +10,7 @@ actions per betting round
 """
 
 from game.simulator import Simulator
-from models.featurizer import FeaturizerManager
 
-# change the model path to load the right one
 FEATURIZER_NAME = 'c11_h50xf10_model9'
 SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + FEATURIZER_NAME
 #SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + 'card_featurizer1.50-10.model.pytorch'
@@ -21,10 +19,7 @@ if __name__ == '__main__':
     # TODO: arg parser
     cuda = False
     verbose = True
-
     simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
-                         p1_strategy='NFSP', p2_strategy='NFSP')
+                          p1_strategy='NFSP', p2_strategy='NFSP')
     simulator.start()
-    #fm = FeaturizerManager(hdim=50, n_filters=10, cuda=cuda)
-    #fm.train_featurizer1()
 
