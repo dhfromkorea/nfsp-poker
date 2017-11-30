@@ -103,7 +103,7 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
     #print(player.stack, player.side_pot, opponent_side_pot, possible_actions)
-    state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds[1])
+    state = build_state(player, board, pot, actions, opponent_stack, blinds[1])
     #import pdb; pdb.set_trace()
     Q_values = Q.forward(*state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues
     #import pdb; pdb.set_trace()
@@ -155,7 +155,7 @@ class StrategyNFSP():
             self.is_Q_used = True
         else:
             # use average policy
-            state = build_state(player, board, pot, actions, b_round, opponent_stack, blinds[1], as_variable=True)
+            state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=True)
             action_probs = self._pi.forward(*state).squeeze()
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
 

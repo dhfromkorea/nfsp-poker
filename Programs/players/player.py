@@ -155,15 +155,16 @@ class NeuralFictitiousPlayer(Player):
         state_vars = [variable(s) for s in exps[0]]
         # 4 x 11 each column is torch variable
         action_vars = variable(exps[1])
+        imp_weights = variable(imp_weights)
         # TODO: need to fix this error
         # currently there's an issue with state and reward variables
         # in terms of their types and so on.
         rewards = variable(exps[2].astype(np.float32))
         next_state_vars = [variable(s) for s in exps[3]]
         if self.is_training:
-            Q_targets = rewards + gamma * self.strategy._target_Q.forward(*next_state_vars)[0].squeeze()
+            Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
             #Q_targets = gamma * self.strategy._target_Q.forward(*next_states)[:, 0].squeeze()
-            td_deltas = self.Q.learn(states, Q_targets, imp_weights)
+            td_deltas = self.strategy._Q.train(state_vars, Q_targets, imp_weights)
             self.memory_rl.update(ids, td_deltas)
 
     def _learn_sl(self, global_step):

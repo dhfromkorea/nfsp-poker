@@ -27,7 +27,7 @@ def create_state_vars_batch(states_batch):
         state_vars.append(var)
     return state_vars
 
-def build_state(player, board, pot, actions, b_round, opponent_stack, big_blind, as_variable=True):
+def build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=True):
     # @todo: add opponent modeling
     """
     Return state as numpy arrays (inputs of Q networks)
@@ -50,9 +50,8 @@ def build_state(player, board, pot, actions, b_round, opponent_stack, big_blind,
     :param as_variable: torch
     :return:
     """
-    print(type(pot))
-    if isinstance(pot, list):
-        import pdb;pdb.set_trace()
+    print('pot', type(pot))
+    print('ops', type(opponent_stack))
     hand = cards_to_array(player.cards)
     board = cards_to_array(board)
     pot_ = np.array([pot])

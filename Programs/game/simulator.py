@@ -477,11 +477,8 @@ class Simulator:
 
     def make_experience(self, player, action, new_game, board, pot, dealer, actions,
                         big_blind, global_step):
-        # ugly...
-        state = [player, board, np.array([player.stack]),
-                 actions, None, np.array([self.players[1 - self.player.id].stack]),
-                 big_blind]
-        state_ = build_state(*state, as_variable=False)
+        opponent_stack = self.players[1 - player.id].stack
+        state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
         reward_ = -action.value

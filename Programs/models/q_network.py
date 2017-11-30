@@ -464,7 +464,7 @@ class QNetwork(t.nn.Module):
         q_values = self.fc28(q_values)
         return q_values
 
-    def learn(self, states, actions, Q_targets, imp_weights):
+    def train(self, states, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
@@ -482,7 +482,7 @@ class QNetwork(t.nn.Module):
         we need this to account for bias in replay sampling
         '''
         td_deltas = x - y
-        mse = imp_weights.dot(td_deltas.pow(2)).mean()
+        mse = t.mean(imp_weights * td_deltas.pow(2))
         return mse, td_deltas
 
 
