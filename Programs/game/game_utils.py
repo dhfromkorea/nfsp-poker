@@ -10,8 +10,9 @@ Setting the blinds, the dealer button, deal cards, processing actions, transform
 from itertools import product
 from sklearn.utils import shuffle
 from game.config import BLINDS
-from game.utils import sample_categorical
+from game.utils import sample_categorical, variable
 import numpy as np
+import torch as t
 
 
 class Card:
@@ -253,11 +254,12 @@ class Action:
         # 14: (101, 200)  # useless ?
     }
 
-    def __init__(self, type, value=0, min_raise=None):
+    def __init__(self, type, value=0, min_raise=None, total=None):
         assert type in {'call', 'check', 'all in', 'fold', 'raise', 'bet', 'null'}
         self.type = type
         self.value = value
         self.min_raise = min_raise
+        self.total = value if total is None else total
 
     def __repr__(self):
         return self.type + ' ' + str(self.value)
@@ -319,14 +321,14 @@ def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
                         if raise_value + opponent_side_pot - player.side_pot == player.stack:
                             return Action('all in', value=player.stack)
                         elif raise_value + opponent_side_pot - player.side_pot < player.stack:
-                            return Action('raise', value=raise_value, min_raise=True)
+                            return Action('raise', value=raise_value, min_raise=True, total=raise_value + opponent_side_pot - player.side_pot)
                         else:
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
                     else:
                         if raise_value + opponent_side_pot - player.side_pot == player.stack:
                             return Action('all in', value=player.stack)
                         elif raise_value + opponent_side_pot - player.side_pot < player.stack:
-                            return Action('raise', value=raise_value, min_raise=False)
+                            return Action('raise', value=raise_value, min_raise=False, total=raise_value + opponent_side_pot - player.side_pot)
                         else:
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
                 except IndexError:  # in this case, you are small blind and raise the BB
@@ -337,14 +339,14 @@ def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
                         if raise_value + opponent_side_pot - player.side_pot == player.stack:
                             return Action('all in', value=player.stack)
                         elif raise_value + opponent_side_pot - player.side_pot < player.stack:
-                            return Action('raise', value=raise_value, min_raise=True)
+                            return Action('raise', value=raise_value, min_raise=True, total=raise_value + opponent_side_pot - player.side_pot)
                         else:
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
                     else:
                         if raise_value + opponent_side_pot - player.side_pot == player.stack:
                             return Action('all in', value=player.stack)
                         elif raise_value + opponent_side_pot - player.side_pot < player.stack:
-                            return Action('raise', value=raise_value, min_raise=False)
+                            return Action('raise', value=raise_value, min_raise=False, total=raise_value + opponent_side_pot - player.side_pot)
                         else:
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
     raise ValueError((actions, player, bucket, b_round))
@@ -518,7 +520,7 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
             max_raise_bucket = get_max_bet_bucket(player.stack)
 
             assert min_raise_bucket > call_bucket, 'buckets are not well calibrated: a bet and a raise can be in the same bucket'
-            if max_raise_bucket < call_bucket or min_raise_bucket == 14:
+            if max_raise_bucket <= call_bucket or min_raise_bucket == 14:
                 return [-1, 14]
             else:
                 min_raise_val = get_raise_from_bucket(min_raise_bucket, actions, b_round, player, opponent_side_pot, raise_val=actions[b_round][1 - player.id][-1].value)
@@ -531,8 +533,11 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
         elif last_action_taken_by_opponent.type == 'all in':
             call_bucket = get_call_bucket(opponent_side_pot - player.side_pot)
             max_bet_bucket = get_max_bet_bucket(player.stack)
-            if max_bet_bucket < call_bucket:
-                return [-1, 14]
+            if max_bet_bucket <= call_bucket:
+                if bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot).total == player.stack:
+                    return [-1, 14]
+                else:
+                    return [-1, call_bucket]
             else:
                 return [-1, call_bucket]
 
@@ -565,7 +570,7 @@ def action_to_array(action):
     :param action: an Action object
     :return: a numpy array
     """
-    array = np.zeros((5,))
+    array = np.zeros((6,))
     if action.type == 'check':
         array[0] = 1
     elif action.type == 'bet':
@@ -573,9 +578,11 @@ def action_to_array(action):
     elif action.type == 'call':
         array[2] = action.value
     elif action.type == 'raise':
-        array[3] = action.value
+        array[3] = action.total  # action.value is the value of the raise, not the total value of the bet itself
     elif action.type == 'all in':
         array[4] = action.value
+    elif action.type == 'fold':
+        array[5] = 1
     return array
 
 
@@ -593,8 +600,26 @@ def actions_to_array(actions):
         for player, plays in players.items():
             for k, action in enumerate(plays):
                 try:
-                    b_round_plays[k, :, player] = action_to_array(action)
+                    b_round_plays[k, :, player] = action_to_array(action)[:-1]  # if a folds happen, it ends the game, so that it is not needed to take a decision in a given betting round (if a fold had occured, you wouldnt have to take a decision)
                 except IndexError:
                     raise IndexError(k, actions, action, b_round)
         all_plays.append(b_round_plays)
     return all_plays
+
+
+def one_hot_encode_actions(actions):
+    """
+
+    :param actions: a VARIABLE of size batch_size x 5 (il y a 5 types d'actions: check, bet, call, raise, all-in)
+    :return: a VARIABLE of size batch_size x 14 (il y a 14 buckets)
+    """
+    values, indices = t.max(actions, -1)
+    actions_buckets = variable(np.zeros(values.data.numpy().shape))
+    actions_buckets[indices==0] = 0  # check
+    actions_buckets[indices==4] = 14  # all in
+    actions_buckets[indices==5] = -1  # fold
+    for bucket_idx in range(1, 14):
+        indicator = lambda x: bucket_idx*(x>=Action.BET_BUCKETS[bucket_idx][0]).float()*((x<=Action.BET_BUCKETS[bucket_idx][1]).float())
+        actions_buckets[indices != 0] += indicator(values[indices != 0])
+        actions_buckets[indices != 5] += indicator(values[indices != 5])
+    return actions_buckets

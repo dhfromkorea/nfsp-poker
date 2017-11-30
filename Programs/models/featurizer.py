@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 
 
-from models.q_network import CardFeaturizer1, CardFeaturizer11
+from models.q_network import CardFeaturizer1
 from game.utils import variable, moving_avg, initialize_save_folder
 from game.game_utils import Card, cards_to_array
 from game.errors import LoadModelError, NotImplementedError

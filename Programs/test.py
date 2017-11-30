@@ -18,6 +18,7 @@ def get_players():
                Player(1, strategy_RL(Q, True), 100, verbose=True, name='DH')]
     return players
 
+
 def test_blinds():
     # A BB with less than the BB, B is SB
     players = get_players()
@@ -597,7 +598,6 @@ def test_all_actions_preflop():
     possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
     assert possible_actions == [-1, 9] + list(range(11, 13)) + [14], possible_actions
 
-
     # SIXTH sITUATION
     actions = get_actions()
     players = get_players()
@@ -613,3 +613,55 @@ def test_all_actions_preflop():
     possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
     assert possible_actions == [-1, 5] + list(range(7, 15)), possible_actions
 
+    # 7th situation
+    actions = get_actions()
+    players = get_players()
+    players[0].is_dealer = True
+    players[0].stack = 66
+    players[1].stack = 134
+    blinds(players)
+    actions[0][0].append(Action('raise', 4, min_raise=False))  # 6 v 2
+    actions[0][1].append(Action('raise', 4, min_raise=True))  # 6 v 10
+    actions[0][0].append(Action('raise', 13, min_raise=False))  # 23 v 10
+    actions[0][1].append(Action('raise', 48, min_raise=False))  # 23 v 71
+    players[0].side_pot = 23
+    players[1].side_pot = 71
+    players[0].stack = 66 - 1 - 23
+    players[1].stack = 134 - 2 - 71
+    # it can either go all in or fold
+    possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
+    assert possible_actions == [-1, 14], possible_actions
+
+    # 8th situation
+    actions = get_actions()
+    players = get_players()
+    players[1].is_dealer = True
+    players[1].stack = 189+1
+    players[0].stack = 8+2
+    blinds(players)
+    actions[0][1].append(Action('raise', 10, min_raise=False))  # 2 v 12
+    players[0].side_pot = 2
+    players[1].side_pot = 12
+    players[0].stack = 8
+    players[1].stack = 190-12
+    # it can either go all in or fold
+    possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
+    assert possible_actions == [-1, 14], possible_actions
+
+    # 9th situation
+    actions = get_actions()
+    players = get_players()
+    players[0].is_dealer = True
+    players[1].stack = 100
+    players[0].stack = 100
+    blinds(players)
+    actions[0][0].append(Action('raise', 10, min_raise=False))  # 12 v 2
+    actions[0][1].append(Action('all in', 98))  # 12 v 100
+
+    players[0].side_pot = 12
+    players[1].side_pot = 100
+    players[0].stack = 88
+    players[1].stack = 0
+    # it can either go all in or fold
+    possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
+    assert possible_actions == [-1, 14], possible_actions

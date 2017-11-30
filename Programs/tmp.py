@@ -11,11 +11,11 @@ actions per betting round
 
 from time import time
 from evaluation import *
-from game_utils import Deck, Player, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
-from q_network import get_Q_and_PI_networks
-from strategies import strategy_RL, strategy_random
-from utils import *
-from config import BLINDS
+from game.game_utils import Deck, Player, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
+from models.q_network import get_Q_and_PI_networks
+from players.strategies import strategy_RL, strategy_random
+from game.utils import *
+from game.config import BLINDS
 from experience_replay.experience_replay import ReplayBufferManager
 
 

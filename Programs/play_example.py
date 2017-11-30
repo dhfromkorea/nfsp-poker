@@ -11,8 +11,9 @@ actions per betting round
 
 from game.simulator import Simulator
 
-FEATURIZER_NAME = 'c11_h50xf10_model9'
-SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + FEATURIZER_NAME
+# FEATURIZER_NAME = 'c11_h50xf10_model9'
+FEATURIZER_NAME = 'card_featurizer1.50-10.model.pytorch'
+SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/' + FEATURIZER_NAME
 #SAVED_FEATURIZER_PATH = 'data/hand_eval/2017_11_25/saved_models/' + 'card_featurizer1.50-10.model.pytorch'
 
 if __name__ == '__main__':

@@ -20,18 +20,19 @@ from torch.autograd import Variable
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
-NUM_ACTIONS = 14
+NUM_ACTIONS = 16
 P1_ETA = 0.1
 P2_ETA = 0.1
 
 strategy_function_map = {'random': strategy_RL, 'mirror': strategy_mirror,
-                         'RL' : strategy_RL}
+                         'RL': strategy_RL}
 
 baseline_strategies = ['mirror']
 qnetwork_strategies = ['RL']
 NFSP_strategies = ['NFSP']
 allowed_strategies = baseline_strategies + qnetwork_strategies + NFSP_strategies
 p_names = ['SB', 'DH']
+
 
 class Simulator:
     """
@@ -44,11 +45,11 @@ class Simulator:
     """
 
     def __init__(self, featurizer_path,
-                       learn_start=100,
-                       verbose=False,
-                       cuda=False,
-                       p1_strategy='RL',
-                       p2_strategy='RL'):
+                 learn_start=100,
+                 verbose=False,
+                 cuda=False,
+                 p1_strategy='RL',
+                 p2_strategy='RL'):
         # define msc.
         self.verbose = verbose
 
@@ -59,14 +60,14 @@ class Simulator:
         Pi0 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Pi1 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
         Q_networks = {0: Q0, 1: Q1}
-        Pi_networks = {0: Pi0, 1:Pi1}
+        Pi_networks = {0: Pi0, 1: Pi1}
         self.players = self._generate_player_instances(p1_strategy, p2_strategy,
                                                        Q_networks, Pi_networks,
                                                        learn_start, verbose)
 
         # define battle-level game states here
         self.new_game = True
-        self.games = {'n': 0, '#episodes': 0, 'winnings' : {}}  # some statistics on the games
+        self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
         self.global_step = 0
 
         # define episode-level game states here
@@ -75,8 +76,7 @@ class Simulator:
         self.board = []
         self.experiences = [None] * len(self.players)
 
-
-    def start(self, term_game_count = -1, return_results = False):
+    def start(self, term_game_count=-1, return_results=False):
         while True:
             if term_game_count > 0 and self.games['n'] > term_game_count:
                 break
@@ -88,23 +88,22 @@ class Simulator:
             self._start_episode()
 
         if return_results:
-            #return self.games.winnings
+            # return self.games.winnings
             return self.games['winnings']
-
 
     def _generate_player_instances(self, p1_strategy, p2_strategy,
                                    Q_networks, Pi_networks, learn_start, verbose):
         players = []
         p_id = 0
-        #Strategies that do not require Q
+        # Strategies that do not require Q
         for strategy in [p1_strategy, p2_strategy]:
             if strategy not in allowed_strategies:
                 raise ValueError("Not a valid strategy")
             elif strategy in baseline_strategies:
-                players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose=verbose))
                 p_id += 1
             elif strategy in qnetwork_strategies:
-                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True),INITIAL_MONEY, p_names[p_id], verbose = verbose))
+                players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True), INITIAL_MONEY, p_names[p_id], verbose=verbose))
                 p_id += 1
             elif strategy in NFSP_strategies:
                 strategy = StrategyNFSP(Q_networks[p_id], Pi_networks[p_id], P1_ETA)
@@ -198,12 +197,12 @@ class Simulator:
 
         # store final experience
         # KEEP TRACK OF TRANSITIONS
-        self.experiences[0]  = self.make_experience(self.players[0], self.action, self.new_game, self.board,
-                                               self.pot, self.dealer, self.actions, BLINDS[1],
-                                               self.global_step)
-        self.experiences[1]  = self.make_experience(self.players[1], self.action, self.new_game, self.board,
-                                               self.pot, self.dealer, self.actions, BLINDS[1],
-                                               self.global_step)
+        self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
+                                                   self.pot, self.dealer, self.actions, BLINDS[1],
+                                                   self.global_step)
+        self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
+                                                   self.pot, self.dealer, self.actions, BLINDS[1],
+                                                   self.global_step)
 
         self.players[0].remember(self.experiences[0])
         self.players[1].remember(self.experiences[1])
@@ -278,13 +277,13 @@ class Simulator:
             return
 
         # RL : Store experiences in memory. Just for the agent
-        self.experiences[0]= self.make_experience(self.players[0], self.action, self.new_game, self.board,
-                                               self.pot, self.dealer, self.actions, BLINDS[1],
-                                               self.global_step)
+        self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
+                                                   self.pot, self.dealer, self.actions, BLINDS[1],
+                                                   self.global_step)
 
-        self.experiences[1]= self.make_experience(self.players[1], self.action, self.new_game, self.board,
-                                               self.pot, self.dealer, self.actions, BLINDS[1],
-                                               self.global_step)
+        self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
+                                                   self.pot, self.dealer, self.actions, BLINDS[1],
+                                                   self.global_step)
         self.players[0].remember(self.experiences[0])
         self.players[1].remember(self.experiences[1])
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
@@ -318,7 +317,7 @@ class Simulator:
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
-    def update_winnings(self, log_freq = 100):
+    def update_winnings(self, log_freq=100):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
         if self.games['n'] % log_freq == 0:
             print(self.games['n'], " games over")
@@ -371,7 +370,6 @@ class Simulator:
 
             if not self.players[1].memory_rl.is_last_step_buffer_empty:
                 self.experiences[1]['final_reward'] = self.pot
-
 
     def _handle_no_fold(self):
         # compute the value of hands
@@ -500,7 +498,6 @@ class Simulator:
                       'final_reward': 0
                       }
         return experience
-
 
     def _make_new_exp(self):
         exp = {'s': 'TERMINAL',
