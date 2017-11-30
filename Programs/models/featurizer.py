@@ -34,7 +34,7 @@ class FeaturizerManager():
     right now only Featurizer1 is supported
     '''
     def __init__(self, hdim, n_filters, model_name=None, featurizer_type='hs', cuda=False,
-                lr=1e-4, batch_size=100, num_epochs=10, weight_decay=1e-3, plot_freq=10000,
+                lr=1e-4, batch_size=128, num_epochs=50, weight_decay=1e-3, plot_freq=10000,
                  checkpoint_freq=20000, verbose=False):
         self.verbose = verbose
         self.f = CardFeaturizer1(hdim, n_filters, cuda=cuda)
