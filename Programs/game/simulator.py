@@ -22,8 +22,9 @@ NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
 # @debug
-P1_ETA = 0.1
-P2_ETA = 0.1
+#P1_ETA = 0.1
+#P2_ETA = 0.1
+ETAS = {0:0.1, 1:0.1}
 
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
@@ -108,7 +109,7 @@ class Simulator:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True), INITIAL_MONEY, p_names[p_id], verbose=verbose))
                 p_id += 1
             elif strategy in NFSP_strategies:
-                strategy = StrategyNFSP(Q_networks[p_id], Pi_networks[p_id], P1_ETA)
+                strategy = StrategyNFSP(Q_networks[p_id], Pi_networks[p_id], ETAS[p_id])
                 nfp = NeuralFictitiousPlayer(pid=p_id,
                                              strategy=strategy,
                                              stack=INITIAL_MONEY,
