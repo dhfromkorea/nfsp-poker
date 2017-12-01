@@ -57,11 +57,11 @@ def build_state(player, board, pot, actions, opponent_stack, big_blind, as_varia
     pot_ = np.array([pot])
     stack_ = np.array([player.stack])
     opponent_stack_ = np.array([opponent_stack])
-    blinds_ = np.array([big_blind])
+    big_blind_ = np.array([big_blind])
     dealer = np.array([player.id if player.is_dealer else 1 - player.id])
     preflop_plays, flop_plays, turn_plays, river_plays = actions_to_array(actions)
 
-    state = [hand, board, pot_, stack_, opponent_stack_, blinds_, dealer, preflop_plays, flop_plays, turn_plays, river_plays]
+    state = [hand, board, pot_, stack_, opponent_stack_, big_blind_, dealer, preflop_plays, flop_plays, turn_plays, river_plays]
     state = [np.expand_dims(s, axis=0) for s in state]
     if as_variable:
         return create_state_variable(state)

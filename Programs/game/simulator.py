@@ -190,7 +190,7 @@ class Simulator:
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
         if not self.fold_occured:
-            self._handle_no_fold()
+            self._showdown()
         # these two clauses update the `s`, `is_terminal` and `final_reward` of self.experiences[0/1]
         if self.split:
             self._handle_split()
@@ -252,10 +252,13 @@ class Simulator:
 
                 # END THE EPISODE
                 self._update_side_pot()
-                # end episode
                 break
 
     def _play_round(self):
+        """
+        Note that here `round` does not designate a round of betting (preflop, flop, turn or river), but rather a
+        unique transition/action/decision point (as you prefer to call it)
+        """
         self.global_step += 1
 
         # CHOOSE AN ACTION
@@ -265,53 +268,44 @@ class Simulator:
 
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
+        self._handle_null()
 
-        if self.action.type == 'null':
-            self.to_play = 1 - self.to_play
-            self.null += 1
-            if self.null >= 2:
-                self.agreed = True
-                # end the round with agreement
-                return
-            # go to the next agreement step
-            return
-
-        # RL : Store experiences in memory. Just for the agent
+        # RL : STORE EXPERIENCES IN MEMORY.
+        # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
         if self.player.player_type == 'nfsp':
             self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board,
                                                                     self.pot, self.dealer, self.actions, BLINDS[1],
                                                                     self.global_step, self.b_round)
             self.player.remember(self.experiences[self.player.id])
 
-        # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
-        if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
-            try:
-                assert self.action.value > 0
-                pass
-            except AssertionError:
-                raise AssertionError
+        # UPDATE STATE DEPENDING ON THE ACTION YOU TOOK
+        # Sanity check: it should be impossible to bet/call/all in
+        if self.action.type in {'all in', 'bet', 'call'}:
+            assert self.action.value > 0
 
         if self.action.type == 'call':
-            self._handle_call()
+            # if you called, the value of your call should make the side pots match
+            self._is_call_legit()
 
+        # update pot, side pots, and stacks
         if self.action.type == 'raise':
             value = self.action.total
-            # value = self._handle_raise()
         else:
             value = self.action.value
-        # update pot
-        self._update_pot(value)
+        self._update_pot_and_stacks(value)
+
         # DRAMATIC ACTION MONITORING
         self._handle_dramatic_action()
 
-        # break if fold
+        # DECIDE WHETHER IT IS THE END OF THE BETTING ROUND OR NOT, AND GIVE LET THE NEXT PLAYER PLAY
+        # if fold, it is the end
         if self.action.type == 'fold':
             self._handle_fold()
             # TODO: break with agreement=True?
             self.agreed = True
             return
 
-        # DECIDE WHETHER IT IS THE END OF THE BETTING ROUND OR NOT, AND GIVE LET THE NEXT PLAYER PLAY
+        # otherwise, check if players came to an agreement
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
@@ -358,7 +352,19 @@ class Simulator:
         self.experiences[1]['s'] = state_
         self.experiences[1]['a'] = None
 
+    def _handle_null(self):
+        if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
+            self.to_play = 1 - self.to_play
+            self.null += 1
+            if self.null >= 2:
+                self.agreed = True
+                # end the round with agreement
+                return
+            # go to the next agreement step
+            return
+
     def _handle_no_split(self):
+        """Note that this function actually updates self.experiences with the final rewards and next state"""
         # if the winner isn't all in, it takes everything
         if self.players[self.winner].stack > 0:
             self.players[self.winner].stack += self.pot
@@ -392,7 +398,7 @@ class Simulator:
         self.experiences[1]['s'] = state_
         self.experiences[1]['a'] = None
 
-    def _handle_no_fold(self):
+    def _showdown(self):
         # compute the value of hands
         self.hand_1 = evaluate_hand(self.players[1].cards + self.board)
         self.hand_0 = evaluate_hand(self.players[0].cards + self.board)
@@ -431,10 +437,6 @@ class Simulator:
                       ' and score: ' + str(self.hand_1[0]))
                 print('Pot split')
 
-    def _handle_raise(self):
-        value = self.action.value + self.players[1 - self.to_play].side_pot - self.player.side_pot - (len(self.actions[0][self.player.id]) == 0) * (self.b_round == 0) * BLINDS[1 - self.player.is_dealer]
-        return value
-
     def _reset_variables(self):
         # RESET VARIABLES
         self.winner = None
@@ -448,7 +450,7 @@ class Simulator:
         self.players[1].contribution_in_this_pot = 0
         assert self.players[1].side_pot == self.players[0].side_pot == 0
 
-    def _handle_call(self):
+    def _is_call_legit(self):
         # if you call, it must be exactly the value of the previous bet or raise or all-in
         side_pot = (self.action.value, self.player.side_pot)
         msg = 'call was not handled correctly: {}'.format(side_pot)
@@ -491,7 +493,7 @@ class Simulator:
         self.players[0].side_pot = 0
         self.players[1].side_pot = 0
 
-    def _update_pot(self, value):
+    def _update_pot_and_stacks(self, value):
         self.player.side_pot += value
         self.player.stack -= value
         assert self.player.stack >= 0, (self.player.stack, self.actions, self.action, value)
