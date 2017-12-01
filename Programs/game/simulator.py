@@ -268,7 +268,16 @@ class Simulator:
 
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
-        self._handle_null()
+
+        if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
+            self.to_play = 1 - self.to_play
+            self.null += 1
+            if self.null >= 2:
+                self.agreed = True
+                # end the round with agreement
+                return
+            # go to the next agreement step
+            return
 
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
@@ -351,17 +360,6 @@ class Simulator:
         state_ = build_state(self.players[1], self.board, self.pot, self.actions, opponent_stack, BLINDS[1], as_variable=False)
         self.experiences[1]['s'] = state_
         self.experiences[1]['a'] = None
-
-    def _handle_null(self):
-        if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
-            self.to_play = 1 - self.to_play
-            self.null += 1
-            if self.null >= 2:
-                self.agreed = True
-                # end the round with agreement
-                return
-            # go to the next agreement step
-            return
 
     def _handle_no_split(self):
         """Note that this function actually updates self.experiences with the final rewards and next state"""
