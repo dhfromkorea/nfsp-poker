@@ -16,6 +16,7 @@ import evaluation.expt_utils as eu
 
 #Example
 results_dict = {}
-results_dict['Random vs Random'] = eu.conduct_games('RL', 'RL', num_games = 10)
+results_dict['Random vs Random'] = eu.conduct_games('Random', 'Random', num_games = 1000, mov_avg_window = 100)
+results_dict['NFSP vs NFSP'] = eu.conduct_games('Random', 'Random', num_games = 1000, mov_avg_window = 100)
 eu.plot_results(results_dict)
 
