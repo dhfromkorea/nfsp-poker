@@ -21,5 +21,5 @@ if __name__ == '__main__':
     cuda = False
     verbose = False
     simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
-                          p1_strategy='NFSP', p2_strategy='NFSP')
+                          p1_strategy='NFSP', p2_strategy='random')
     simulator.start()

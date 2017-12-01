@@ -1,8 +1,9 @@
-from game.game_utils import blinds, bucket_to_action, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
+from game.game_utils import blinds, bucket_to_action, Card, authorized_actions_buckets, get_min_raise_bucket, get_max_bet_bucket, get_call_bucket, get_raise_from_bucket, Action
 from players.strategies import strategy_RL, strategy_random
 from players.player import Player, NeuralFictitiousPlayer
 from models.q_network import QNetwork, PiNetwork, CardFeaturizer1
 from nose.tools import *
+from odds.evaluation import evaluate_hand
 
 
 def get_actions():
@@ -17,6 +18,19 @@ def get_players():
     players = [Player(0, strategy_RL(Q, True), 100, verbose=True, name='SB'),
                Player(1, strategy_RL(Q, True), 100, verbose=True, name='DH')]
     return players
+
+
+def c(c_str):
+    if len(c_str) == 2:
+        return Card(c_str[0], c_str[1])
+    else:
+        return Card('10', c_str[-1])
+
+
+def test_evaluate_hand():
+    cards = [c('3d'), c('3c'), c('3s'), c('Ad'), c('10s'), c('10h'), c('10d')]
+    evaluation = evaluate_hand(cards)
+    assert False
 
 
 def test_blinds():
