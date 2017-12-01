@@ -95,7 +95,7 @@ def evaluate_hand(cards):
         hand_value = 200 + (sum(winning_cards[:4]))
         tie_break = values[:1]
 
-    if trip_l:
+    if len(trip_l) == 1:
         rep = ('trip ' + cn(trip_l[0]) + 's ')
         hand_value = 300 + (sum(winning_cards[:3]))
         tie_break = values[:2]
@@ -120,6 +120,12 @@ def evaluate_hand(cards):
     if len(trip_l) == 1 and len(pair_l) >= 1:
         rep = ('full house - ' + cn(trip_l[0]) + 's full of ' + cn(pair_l[0]) + 's')
         hand_value = 600 + (sum(winning_cards[:3]))
+
+    if len(trip_l) == 2:
+        highest = max(trip_l)
+        lowest = min(trip_l)
+        rep = ('full house - ' + cn(highest) + 's full of ' + cn(lowest) + 's')
+        hand_value = 600 + (3*highest)
 
     if quad_l:
         rep = ('four ' + cn(quad_l[0]) + ' s')

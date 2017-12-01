@@ -28,7 +28,7 @@ def c(c_str):
 
 
 def test_evaluate_hand():
-    cards = [c('3d'), c('Ac'), c('3s'), c('4c'), c('6c'), c('2h'), c('5d')]
+    cards = [c('3d'), c('3c'), c('3s'), c('Ad'), c('10s'), c('10h'), c('10d')]
     evaluation = evaluate_hand(cards)
     assert False
 
