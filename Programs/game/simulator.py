@@ -367,11 +367,13 @@ class Simulator:
         # If the agent won, gives it the chips and reminds him that it won the chips
         if self.winner == 0:
             # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-            if not self.players[0].memory_rl.is_last_step_buffer_empty:
-                self.experiences[0]['final_reward'] = self.pot
+            if self.players[0].player_type == 'nfsp':
+                if not self.players[0].memory_rl.is_last_step_buffer_empty:
+                    self.experiences[0]['final_reward'] = self.pot
 
-            if not self.players[1].memory_rl.is_last_step_buffer_empty:
-                self.experiences[1]['final_reward'] = self.pot
+            if self.players[1].player_type == 'nfsp':
+                if not self.players[1].memory_rl.is_last_step_buffer_empty:
+                    self.experiences[1]['final_reward'] = self.pot
 
     def _handle_no_fold(self):
         # compute the value of hands
