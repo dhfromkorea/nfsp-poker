@@ -19,7 +19,7 @@ SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/' + FEATURIZER_NAME
 if __name__ == '__main__':
     # TODO: arg parser
     cuda = False
-    verbose = True
+    verbose = False
     simulator = Simulator(verbose=verbose, featurizer_path=SAVED_FEATURIZER_PATH, cuda=cuda,
                           p1_strategy='NFSP', p2_strategy='NFSP')
     simulator.start()

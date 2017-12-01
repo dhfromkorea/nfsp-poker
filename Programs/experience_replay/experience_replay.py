@@ -2,6 +2,7 @@ from experience_replay.proportional import ProportionalExperienceReplay
 from experience_replay.rank_based import RankExperienceReplay
 from experience_replay.reservoir import ReservoirExperienceReplay
 import numpy as np
+import math
 
 
 class ReplayBufferManager:
@@ -30,12 +31,14 @@ class ReplayBufferManager:
             self.config = {'size': config.get('size', 2**10),
                            #this is a game-level parameter
                          'learn_start': learn_start,
-                         'partition_num': config.get('partition_num', 2**6),
+                         'partition_num': config.get('partition_num', 2**4),
                            # when bias decay schedule ends
-                         'total_step': config.get('total_step', 10*9),
+                         'total_step': config.get('total_step', 10**9),
                          'batch_size': config.get('batch_size', 2**5)
                          }
 
+            dist_index = self.config['learn_start'] / self.config['size'] * self.config['partition_num']
+            assert math.floor(dist_index) == math.ceil(dist_index), "Memory_RL initialization should be consistent with the assertion here"
             self._buffer = RankExperienceReplay(self.config)
         elif self.target == 'sl':
             self.config = {'size': config.get('size', 10**6),
@@ -68,7 +71,9 @@ class ReplayBufferManager:
         # store experience
         # note: timestep is needed to compute importance weights
         # check this paper: https://arxiv.org/pdf/1511.05952.pdf
-        if not self.is_last_step_buffer_empty and not experience['is_new_game']:
+        # @debug
+        # if not self.is_last_step_buffer_empty and not experience['is_new_game']:
+        if not self.is_last_step_buffer_empty:
             # update T_{t-1}
             self._last_step_buffer['next_s'] = experience['s']
             if experience['s'] == 'TERMINAL':
@@ -110,6 +115,8 @@ class ReplayBufferManager:
         '''
         if self.target == 'rl':
             exps, imp_weights, exp_ids = self._buffer.sample(global_step)
+            if exps == False:
+                import pdb;pdb.set_trace()
             return self._batch_stack(exps), imp_weights, exp_ids
         else:
             exps = self._buffer.sample()

@@ -44,8 +44,11 @@ class RankExperienceReplay(object):
         :return: distributions, dict
         """
         res = {}
+        #import pdb;pdb.set_trace()
         n_partitions = self.partition_num
+        # debug
         partition_num = 1
+        # partition_num = 0
         # each part size
         partition_size = math.floor(self.size / n_partitions)
         for n in range(partition_size, self.size + 1, partition_size):
@@ -163,8 +166,13 @@ class RankExperienceReplay(object):
         # issue 1 by @camigord
         partition_size = math.floor(self.size / self.partition_num)
         partition_max = dist_index * partition_size
+        if dist_index not in self.distributions.keys():
+            dist_index += 1
+
         distribution = self.distributions[dist_index]
+
         rank_list = []
+
         # sample from k segments
         for n in range(1, self.batch_size + 1):
             # TODO: fix this hack

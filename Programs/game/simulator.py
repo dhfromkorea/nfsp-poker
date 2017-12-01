@@ -21,8 +21,8 @@ INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
-P1_ETA = 0.9
-P2_ETA = 0.9
+P1_ETA = 0.1
+P2_ETA = 0.1
 
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
@@ -45,7 +45,8 @@ class Simulator:
     """
 
     def __init__(self, featurizer_path,
-                 learn_start=100,
+                 # this should be set to a power of two for buffers
+                 learn_start=128,
                  verbose=False,
                  cuda=False,
                  p1_strategy='RL',
@@ -213,7 +214,7 @@ class Simulator:
                 self.players[1].remember(self.experiences[1])
 
         for p in self.players:
-            if p.player_type == 'nsfp':
+            if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
 
         self._reset_variables()

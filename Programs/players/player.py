@@ -131,13 +131,33 @@ class NeuralFictitiousPlayer(Player):
         TODO: add a second player with Q and PI
         '''
         # TODO: set policy with
-        if global_step > self.learn_start:
+        print('global step', global_step)
+        print('Record Size of M_RL', self.memory_rl._buffer.record_size)
+        print('Record Size of M_SL', self.memory_sl._buffer.record_size)
+        if self._is_ready_to_learn_RL(global_step):
             self._learn_rl(global_step)
+
+        if self._is_ready_to_learn_SL(global_step):
             self._learn_sl(global_step)
+
+        record_size_rl = self.memory_rl._buffer.record_size
+        record_size_sl = self.memory_sl._buffer.record_size
+        msg = 'pid: {} record size for RL:{} should be larger than SL: {}'.format(self.id, record_size_rl, record_size_sl)
+        #assert (record_size_rl + 1) >= record_size_sl, msg
 
         if episode_i % self.target_update == 0:
             # sync target network periodically
             self.strategy.sync_target_network()
+
+    def _is_ready_to_learn_RL(self, global_step):
+        record_size = self.memory_rl._buffer.record_size
+        batch_size = self.memory_rl.batch_size
+        return record_size >= self.learn_start and record_size >= batch_size
+
+    def _is_ready_to_learn_SL(self, global_step):
+        record_size = self.memory_sl._buffer.record_size
+        batch_size = self.memory_sl.batch_size
+        return record_size >= self.learn_start and record_size >= batch_size
 
     def _learn_rl(self, global_step):
         '''
@@ -168,6 +188,8 @@ class NeuralFictitiousPlayer(Player):
             self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):
+        #if self.id == 0:
+            #import pdb;pdb.set_trace()
         self.memory_rl.store_experience(exp)
         if self.is_Q_used:
             # if action was chosen by e-greedy policy

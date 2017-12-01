@@ -168,7 +168,7 @@ class StrategyNFSP():
             # print(valid_action_probs)
             valid_action_probs /= t.sum(valid_action_probs)
             action = bucket_to_action(sample_action(idx, valid_action_probs.data.numpy()), actions, b_round, player, opponent_side_pot)
-            self.is_Q_used = True
+            self.is_Q_used = False
         return action, self.is_Q_used
 
     def sync_target_network(self):
