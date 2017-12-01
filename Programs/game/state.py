@@ -1,19 +1,20 @@
 import numpy as np
 import torch as t
 from torch.autograd import Variable
-
 from game.game_utils import cards_to_array, actions_to_array
+
 
 def create_state_variable(state):
     # TODO: check if dtype should be handled individually
     dtype = t.FloatTensor
-    f = lambda x : Variable(t.from_numpy(x).type(dtype), requires_grad=False)
+    f = lambda x: Variable(t.from_numpy(x).type(dtype), requires_grad=False)
     return [f(e) for e in state]
 
 
 def create_state_variable_batch():
     f = np.vectorize(create_state_variable)
     return f
+
 
 def create_state_vars_batch(states_batch):
     '''
@@ -26,6 +27,7 @@ def create_state_vars_batch(states_batch):
         var = Variable(t.from_numpy(states_batch[:, i]).type(dtype), requires_grad=False)
         state_vars.append(var)
     return state_vars
+
 
 def build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=True):
     # @todo: add opponent modeling

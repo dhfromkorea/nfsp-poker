@@ -465,7 +465,10 @@ def authorized_actions_buckets(player, actions, b_round, opponent_side_pot):
             assert max_bet_bucket != 14
             # bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot).total >= player.stack
             if min_bet_bucket < max_bet_bucket or ((min_bet_bucket == max_bet_bucket) and (Action.BET_BUCKETS[min_bet_bucket][1] > Action.BET_BUCKETS[min_bet_bucket][0])):
-                return [check_bucket] + list(range(min_bet_bucket, max_bet_bucket+1)) + [14]
+                if bucket_to_action(max_bet_bucket, actions, b_round, player, opponent_side_pot).total >= player.stack:
+                    return [check_bucket] + list(range(min_bet_bucket, max_bet_bucket)) + [14]
+                else:
+                    return [check_bucket] + list(range(min_bet_bucket, max_bet_bucket+1)) + [14]
             else:
                 return [check_bucket] + [14]
 

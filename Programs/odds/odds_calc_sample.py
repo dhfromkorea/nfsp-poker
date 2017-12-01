@@ -66,7 +66,7 @@ def gen_odds():
             board = None
             if r > 2:
                 board = list(combo[2:])
-            out = hc.run((tuple(combo[0:2]),),int(1e4),False,board,None,False)
+            out = hc.run((tuple(combo[0:2]),),int(3000),False,board,None,False)
                 #pdb.set_trace()
             final_out.update(out)
                 #final_out = {**final_out, **out}
@@ -75,7 +75,7 @@ def gen_odds():
             if no_samples <= 5:
                 print(out)
                     
-            if time.time() - baseline > 3600:
+            if time.time() - baseline > 900 or i % (1e6) == 0:
                 baseline = time.time()
                 pickle.dump(final_out, open("hand_eval_sample" + str(r) + str(time.time()) +".p", 'wb', ))
                 final_out = {}

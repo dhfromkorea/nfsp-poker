@@ -317,32 +317,64 @@ def find_winner(generate_boards, deck, hole_cards, num, board_length,
     if pad_opp:
         result_list = [None]*2
         #opp_cards = random.sample(deck,2)
-        #hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
+        #hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1])) 
         
-    for remaining_board in generate_boards(deck, num, board_length):
-        # Generate a new board
-        if given_board:
-            board = given_board[:]
-            board.extend(remaining_board)
-        else:
-            board = remaining_board
-            
-        if pad_opp:
-            opp_cards = random.sample(deck,2)
-            hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
-        # Find the best possible poker hand given the created board and the
-        # hole cards and save them in the results data structures
-        suit_histogram, histogram, max_suit = (
-            preprocess_board(board))
-        for index, hole_card in enumerate(hole_cards):
+    if board_length == 5:
+        for i in range(num):
+            for remaining_board in generate_boards(deck, num, board_length):
+                #print("Hello")
+                # Generate a new board        
+                if given_board:
+                    board = given_board[:]
+                    board.extend(remaining_board)
+                else:
+                    board = remaining_board
+                    
+                if pad_opp:
+                    opp_cards = random.sample(deck,2)
+                    hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
+                # Find the best possible poker hand given the created board and the
+                # hole cards and save them in the results data structures
+                suit_histogram, histogram, max_suit = (
+                    preprocess_board(board))
+                for index, hole_card in enumerate(hole_cards):
+                    #pdb.set_trace()
+        
+                    result_list[index] = detect_hand(hole_card, board, suit_histogram,
+                                                     histogram, max_suit)
+                # Find the winner of the hand and tabulate results
+                #pdb.set_trace()
+                winner_index = compare_hands(result_list)
+                winner_list[winner_index] += 1
+                # Increment what hand each player made
+                for index, result in enumerate(result_list):
+                    result_histograms[index][result[0]] += 1
+    else:     
+        for remaining_board in generate_boards(deck, num, board_length):
+            #print("Hello")
+            # Generate a new board        
+            if given_board:
+                board = given_board[:]
+                board.extend(remaining_board)
+            else:
+                board = remaining_board
+                
+            if pad_opp:
+                opp_cards = random.sample(deck,2)
+                hole_cards = (hole_cards[0],(opp_cards[0],opp_cards[1]))
+            # Find the best possible poker hand given the created board and the
+            # hole cards and save them in the results data structures
+            suit_histogram, histogram, max_suit = (
+                preprocess_board(board))
+            for index, hole_card in enumerate(hole_cards):
+                #pdb.set_trace()
+    
+                result_list[index] = detect_hand(hole_card, board, suit_histogram,
+                                                 histogram, max_suit)
+            # Find the winner of the hand and tabulate results
             #pdb.set_trace()
-
-            result_list[index] = detect_hand(hole_card, board, suit_histogram,
-                                             histogram, max_suit)
-        # Find the winner of the hand and tabulate results
-        #pdb.set_trace()
-        winner_index = compare_hands(result_list)
-        winner_list[winner_index] += 1
-        # Increment what hand each player made
-        for index, result in enumerate(result_list):
-            result_histograms[index][result[0]] += 1
+            winner_index = compare_hands(result_list)
+            winner_list[winner_index] += 1
+            # Increment what hand each player made
+            for index, result in enumerate(result_list):
+                result_histograms[index][result[0]] += 1

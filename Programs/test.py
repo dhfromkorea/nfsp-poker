@@ -590,6 +590,22 @@ def test_authorized_actions_buckets():
     authorized_actions = authorized_actions_buckets(players[0], actions, b_round, opponent_side_pot)
     assert authorized_actions == [0, 14], authorized_actions
 
+    # flop, you have 41 left and go all in
+    actions = get_actions()
+    players = get_players()
+    players[1].is_dealer = True
+    blinds(players)
+    b_round = 1
+    actions[1][0].append(Action('check', 0))  # 0v0
+
+    players[0].side_pot = 0
+    players[1].side_pot = 0
+    players[0].stack = 41
+    players[1].stack = 41
+    opponent_side_pot = 41
+    authorized_actions = authorized_actions_buckets(players[1], actions, b_round, opponent_side_pot)
+    assert authorized_actions == [0] + list(range(2,11)) + [14], authorized_actions
+
 
 def test_all_actions_preflop():
     # FIRST SITUATION

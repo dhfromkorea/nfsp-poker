@@ -116,7 +116,6 @@ class NeuralFictitiousPlayer(Player):
         self.learn_start = learn_start
         self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_conf, learn_start=learn_start)
         self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_conf, learn_start=learn_start)
-        self.memory_count = 0
 
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
         '''
@@ -132,20 +131,13 @@ class NeuralFictitiousPlayer(Player):
         TODO: add a second player with Q and PI
         '''
         # TODO: set policy with
-        if self._is_ready_to_learn(global_step):
+        if global_step > self.learn_start:
             self._learn_rl(global_step)
             self._learn_sl(global_step)
 
         if episode_i % self.target_update == 0:
             # sync target network periodically
             self.strategy.sync_target_network()
-
-
-    def _is_ready_to_learn(self, global_step):
-        # with some safety padding for off by one error
-        hot_fix = self.memory_rl._buffer.record_size > self.memory_rl._buffer.batch_size
-        return global_step > (self.learn_start) and hot_fix
-
 
     def _learn_rl(self, global_step):
         '''
@@ -176,8 +168,6 @@ class NeuralFictitiousPlayer(Player):
             self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):
-        self.memory_count += 1
-        print(self.name, ' remember count', self.memory_count)
         self.memory_rl.store_experience(exp)
         if self.is_Q_used:
             # if action was chosen by e-greedy policy

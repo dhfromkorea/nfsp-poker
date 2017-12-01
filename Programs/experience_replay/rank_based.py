@@ -159,14 +159,7 @@ class RankExperienceReplay(object):
             sys.stderr.write('Record size less than learn start! Sample failed\n')
             return False, False, False
 
-        try:
-            dist_index = math.floor(self.record_size / self.size * self.partition_num)
-        except:
-            print(self.record_size)
-            print(self.learn_start)
-            print(self.partition_num)
-            print(self.size)
-            import pdb;pdb.set_trace()
+        dist_index = math.floor(self.record_size / self.size * self.partition_num)
         # issue 1 by @camigord
         partition_size = math.floor(self.size / self.partition_num)
         partition_max = dist_index * partition_size
