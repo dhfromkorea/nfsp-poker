@@ -24,10 +24,10 @@ NUM_ACTIONS = 16
 P1_ETA = 0.9
 P2_ETA = 0.9
 
-strategy_function_map = {'random': strategy_RL, 'mirror': strategy_mirror,
+strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
 
-baseline_strategies = ['mirror']
+baseline_strategies = ['mirror', 'random']
 qnetwork_strategies = ['RL']
 NFSP_strategies = ['NFSP']
 allowed_strategies = baseline_strategies + qnetwork_strategies + NFSP_strategies
@@ -124,7 +124,7 @@ class Simulator:
         # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
         self.games['n'] += 1
         # buffer_length = buffer_rl.size
-        buffer_length = 0
+        buffer_length = self.players[0].memory_rl._buffer.record_size
 
         if self.verbose:
             t0 = time()
@@ -247,6 +247,13 @@ class Simulator:
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
 
+                action0 = self.actions[self.b_round][0][-1]
+                action1 = self.actions[self.b_round][1][-1]
+
+                self.experiences[0] = self.make_experience(self.players[0], action0, self.new_game, self.board, self.pot, self.dealer,
+                                                           self.actions, BLINDS[1], self.global_step, 4)
+                self.experiences[1] = self.make_experience(self.players[1], action1, self.new_game, self.board, self.pot, self.dealer,
+                                                           self.actions, BLINDS[1], self.global_step, 4)
                 self.players[0].remember(self.experiences[0])
                 self.players[1].remember(self.experiences[1])
 
@@ -277,15 +284,11 @@ class Simulator:
             return
 
         # RL : Store experiences in memory. Just for the agent
-        self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
+        self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board,
+                                                                self.pot, self.dealer, self.actions, BLINDS[1],
+                                                                self.global_step, self.b_round)
+        self.player.remember(self.experiences[self.player.id])
 
-        self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
-        self.players[0].remember(self.experiences[0])
-        self.players[1].remember(self.experiences[1])
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
         if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
             try:
@@ -486,7 +489,7 @@ class Simulator:
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        reward_ = -action.value - (b_round==0)*((dealer==player.id)*big_blind/2 + (dealer!=player.id)*big_blind)
+        reward_ = -action.value - (b_round == 0) * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
         # we need to inform replay manager of some extra stuff

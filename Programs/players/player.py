@@ -102,7 +102,7 @@ class NeuralFictitiousPlayer(Player):
         self.id = pid
         self.name = name
 
-        self.player_type = 'nfp'
+        self.player_type = 'nfsp'
         self.strategy = strategy
         self.is_Q_used = False
         self.is_training = is_training
