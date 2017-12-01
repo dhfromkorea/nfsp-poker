@@ -12,6 +12,7 @@ class ReplayBufferManager:
     see this example
     https://github.com/Damcy/cascadeLSTMDRL/blob/a6c502bc93197adb36adc8313cc925fdb12c08ee/agent/src/QLearner.py
     '''
+
     def __init__(self, target, config, learn_start, verbose=False):
         if not target in ['rl', 'sl']:
             raise Exception('Unsupported Memory Type', target)
@@ -28,23 +29,23 @@ class ReplayBufferManager:
             having partition_num samples"
 
         if self.target == 'rl':
-            self.config = {'size': config.get('size', 2**10),
-                           #this is a game-level parameter
-                         'learn_start': learn_start,
-                         'partition_num': config.get('partition_num', 2**4),
+            self.config = {'size': config.get('size', 2 ** 10),
+                           # this is a game-level parameter
+                           'learn_start': learn_start,
+                           'partition_num': config.get('partition_num', 2 ** 4),
                            # when bias decay schedule ends
-                         'total_step': config.get('total_step', 10**9),
-                         'batch_size': config.get('batch_size', 2**5)
-                         }
+                           'total_step': config.get('total_step', 10 ** 9),
+                           'batch_size': config.get('batch_size', 2 ** 5)
+                           }
 
             dist_index = self.config['learn_start'] / self.config['size'] * self.config['partition_num']
             assert math.floor(dist_index) == math.ceil(dist_index), "Memory_RL initialization should be consistent with the assertion here"
             self._buffer = RankExperienceReplay(self.config)
         elif self.target == 'sl':
-            self.config = {'size': config.get('size', 10**6),
-                         'learn_start': learn_start,
-                         'batch_size': config.get('batch_size', 64)
-                         }
+            self.config = {'size': config.get('size', 10 ** 6),
+                           'learn_start': learn_start,
+                           'batch_size': config.get('batch_size', 64)
+                           }
             self._buffer = ReservoirExperienceReplay(self.config)
         else:
             raise Exception('Experience Replay target not supported')
@@ -52,7 +53,6 @@ class ReplayBufferManager:
         if True:
             print('experience replay set up')
             print(self.config)
-
 
         self.batch_size = config.get('batch_size', 64)
         self._last_step_buffer = None
@@ -62,7 +62,6 @@ class ReplayBufferManager:
         return (experience['s'], experience['a'],
                 experience['r'], experience['next_s'],
                 experience['t'])
-
 
     def store_experience(self, experience):
         if self.target == 'sl':
@@ -76,17 +75,17 @@ class ReplayBufferManager:
         if not self.is_last_step_buffer_empty:
             # update T_{t-1}
             self._last_step_buffer['next_s'] = experience['s']
-            if experience['s'] == 'TERMINAL':
+            if experience['is_terminal']:
                 self._last_step_buffer['r'] += experience['final_reward']
             # store T_{t-1} in a real buffer
             exp_tuple = ReplayBufferManager.make_exp_tuple(self._last_step_buffer)
             self.store(exp_tuple)
 
         # we flush empty temp buffer is a new episode starts
-        if experience['s'] == 'TERMINAL':
+        if experience['is_terminal']:
             self._last_step_buffer = None
         else:
-        # put T_{t} in a temp buffer
+            # put T_{t} in a temp buffer
             self._last_step_buffer = experience
 
     @property
@@ -101,7 +100,6 @@ class ReplayBufferManager:
         res = self._buffer.store(exp_tuple)
         if not res:
             raise Exception('failed to store', exp_tuple)
-
 
     def sample(self, global_step):
         '''
@@ -121,7 +119,6 @@ class ReplayBufferManager:
         else:
             exps = self._buffer.sample()
             return self._batch_stack(exps)
-
 
     def update(self, exp_ids, deltas):
         '''

@@ -4,13 +4,17 @@ import datetime
 import os, errno
 
 
+def get_last_round(actions, player):
+    for i in reversed(range(0, 4)):
+        if len(actions[i][player])>0:
+            return i
+    return -1
+
+
 def softmax(x):
-    p = np.exp(x) / np.sum(np.exp(x))
-    # p = p*(p >= 1e-3)
-    # for k, x in enumerate(p):
-    #     p[k] = int(10000*x)/10000
-    # p /= p.sum()
-    return p
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=0)
 
 
 def sample_categorical(probabilities):
