@@ -108,6 +108,8 @@ class ReplayBufferManager:
         '''
         if self.target == 'rl':
             exps, imp_weights, exp_ids = self._buffer.sample(global_step)
+            if exps == False:
+                import pdb;pdb.set_trace()
             return self._batch_stack(exps), imp_weights, exp_ids
         else:
             exps = self._buffer.sample()
