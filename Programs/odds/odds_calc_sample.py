@@ -17,7 +17,7 @@ import time
 from copy import deepcopy
 import random, math
 
-chdir("E:\\CS281AdvancedML\\cs281-final-project\Programs\odds\pickledir")
+# chdir("E:\\CS281AdvancedML\\cs281-final-project\Programs\odds\pickledir")
 symbols = ['2','3','4','5','6','7','8','9','T','J','Q','K','A']
 suits = ['h','s','c','d']
 poss_cards = []
@@ -54,8 +54,8 @@ def generate_sample(poss_cards,r):
     return poss_cards[:r]
     
 def gen_odds():
-    req = [2,5,6,7]
-    no_samples = 5
+    req = [7]
+    no_samples = int(5e5)
        
     baseline = time.time()
     for r in req:
@@ -75,7 +75,7 @@ def gen_odds():
             if no_samples <= 5:
                 print(out)
                     
-            if time.time() - baseline > 900 or i % (1e6) == 0:
+            if time.time() - baseline > 900 or i % int(1e6) == 0:
                 baseline = time.time()
                 pickle.dump(final_out, open("hand_eval_sample" + str(r) + str(time.time()) +".p", 'wb', ))
                 final_out = {}

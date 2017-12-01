@@ -13,8 +13,8 @@ def is_straight(values, length):
     for low in (10, 9, 8, 7, 6, 5, 4, 3, 2, 1):
         needed = set(range(low, low + length))
         if len(needed - hand) <= 0:
-            return (low+length)-1
-    return 0
+            return (low+length)-1, list(sorted(range(low, low+length), reverse=True))
+    return 0, []
 
 
 def evaluate_hand(cards):
@@ -49,7 +49,7 @@ def evaluate_hand(cards):
     tie_break = 0
 
     limit = min(5, len(values))
-    straight = is_straight(values, limit)
+    straight, straight_cards = is_straight(values, limit)
 
     for key, value in value_count.items():
         if value > 1:
@@ -79,57 +79,58 @@ def evaluate_hand(cards):
     for key, value in suit_count.items():
         flush_score = 0
         if value == 5:
+            flush_suit = key
             flush = True
             high_card = False
         else:
             flush_score = value
 
-    if len(pair_l) == 1 and trip_l == []:
+    if len(pair_l) == 1:
         rep = ('pair of ' + cn(pair_l[0]) + 's')
         hand_value = 100 + (sum(winning_cards[:2]))
         tie_break = values[:3]
 
-    elif len(pair_l) > 1:
+    if len(pair_l) > 1:
         rep = ('two pair -' + cn(pair_l[0]) + 's and ' + cn(pair_l[1]) + 's ')
         hand_value = 200 + (sum(winning_cards[:4]))
         tie_break = values[:1]
 
-    elif trip_l and pair_l == []:
+    if trip_l:
         rep = ('trip ' + cn(trip_l[0]) + 's ')
         hand_value = 300 + (sum(winning_cards[:3]))
         tie_break = values[:2]
 
-    elif straight > 0 and not flush:
+    if straight > 0:
         rep = ('Straight, ' + cn(straight) + ' high')
         hand_value = 400 + straight
+        tie_break = straight_cards
 
-    elif flush:
-
+    if flush:
         flush_l = []
         # find out the values of each flush card for comparison
         for card in cards:
-            if key in card.suit:
+            if flush_suit in card.suit:
                 flush_l.append(card.value)
         flush_l.sort(reverse=True)
+        flush_l = flush_l[:5]
         rep = ('Flush, ' + cn(flush_l[0]) + ' high')
         hand_value = 500 + (int(flush_l[0]))
         tie_break = flush_l
 
-    elif len(trip_l) == 1 and len(pair_l) >= 1:
+    if len(trip_l) == 1 and len(pair_l) >= 1:
         rep = ('full house - ' + cn(trip_l[0]) + 's full of ' + cn(pair_l[0]) + 's')
         hand_value = 600 + (sum(winning_cards[:3]))
 
-
-    elif quad_l:
+    if quad_l:
         rep = ('four ' + cn(quad_l[0]) + ' s')
         hand_value = 700 + (sum(winning_cards[:4]))
         tie_break = values[:1]
 
-    elif (straight in range(1, 9)) and flush:
+    if (straight in range(1, 9)) and flush:
         rep = ('Straight flush, ' + cn(straight) + ' high')
         hand_value = 800 + straight
 
-    else:
+    if hand_value == 0:
         rep = ('high card ' + cn(values[0]))
         hand_value = values[0]
         tie_break = values[:4]
