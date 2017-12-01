@@ -68,7 +68,8 @@ class Simulator:
         # define battle-level game states here
         self.new_game = True
         self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
-        self.global_step = 0
+        # global step == # of rounds played - 1 == # of transitions
+        self.global_step = -1
 
         # define episode-level game states here
         self.deck = Deck()
@@ -185,6 +186,7 @@ class Simulator:
         # initialize experiences for player 1 and 2
         self.experiences[0] = self._make_new_exp()
         self.experiences[1] = self._make_new_exp()
+
         # WINNER GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
@@ -197,32 +199,35 @@ class Simulator:
 
         # store final experience
         # KEEP TRACK OF TRANSITIONS
-        self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
-        self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
-
-        self.players[0].remember(self.experiences[0])
-        self.players[1].remember(self.experiences[1])
         for p in self.players:
+            actions = self.actions[self.b_round][p.id]
+            # TODO: there's a case when actions is []
+            if len(actions) != 0:
+                last_action = actions[-1]
+                self.experiences[p.id] = self.make_experience(p, last_action, self.new_game, self.board,
+                                                           self.pot, self.dealer, self.actions, BLINDS[1],
+                                                           self.global_step, self.b_round)
+
+                #self.player.remember(self.experiences[p.id])
+            # we learn regardless after each episode
             p.learn(self.global_step, self.games['#episodes'])
 
         self._reset_variables()
-        # TODO: remove this! temp variable
-        self.is_new_game = True
         # IS IT THE END OF THE GAME ? (bankruptcy)
         self._set_new_game()
 
     def _play_rounds(self):
+        # not a new game anymore
+        self.new_game = False
+
         # EPISODE ACTUALLY STARTS HERE
         for r in range(NUM_ROUNDS):
-            if r > 0:
-                self.new_game = False
-            self.b_round = r
+            # updating global_step only when actions are not null
+            self.global_step += 1
+
             # DIFFERENTIATE THE CASES WHERE PLAYERS ARE ALL-IN FROM THE ONES WHERE NONE OF THEM IS
             if self.all_in < 2:
+                self.b_round = r
                 # DEAL CARDS
                 deal(self.deck, self.players, self.board, self.b_round, verbose=self.verbose)
                 self.agreed = False  # True when the max bet has been called by everybody
@@ -233,8 +238,11 @@ class Simulator:
                 else:
                     self.to_play = self.dealer
 
+
                 while not self.agreed:
                     self._play_round()
+                    print('agreed', self.agreed)
+
 
                 self._update_side_pot()
 
@@ -247,8 +255,18 @@ class Simulator:
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
 
-                self.players[0].remember(self.experiences[0])
-                self.players[1].remember(self.experiences[1])
+                # TODO: grey area not well tested
+                for p in self.players:
+                    actions = self.actions[self.b_round][p.id]
+                    # to handle an edge case where no actions were taken but all-in
+                    if len(actions) != 0:
+                        last_action = actions[-1]
+                        self.experiences[p.id] = self.make_experience(p, last_action, self.new_game, self.board,
+                                                                   self.pot, self.dealer, self.actions, BLINDS[1],
+                                                                   self.global_step, self.b_round)
+
+                        #self.player.remember(self.experiences[p.id])
+
 
                 # END THE EPISODE
                 self._update_side_pot()
@@ -256,8 +274,6 @@ class Simulator:
                 break
 
     def _play_round(self):
-        self.global_step += 1
-
         # CHOOSE AN ACTION
         self.player = self.players[self.to_play]
         assert self.player.stack >= 0, self.player.stack
@@ -276,21 +292,19 @@ class Simulator:
             # go to the next agreement step
             return
 
-        # RL : Store experiences in memory. Just for the agent
-        self.experiences[0] = self.make_experience(self.players[0], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
 
-        self.experiences[1] = self.make_experience(self.players[1], self.action, self.new_game, self.board,
-                                                   self.pot, self.dealer, self.actions, BLINDS[1],
-                                                   self.global_step, self.b_round)
-        self.players[0].remember(self.experiences[0])
-        self.players[1].remember(self.experiences[1])
+        # RL : Store experiences in memory. Just for the agent
+        print('b_round', self.b_round, 'player who played this round', self.player.name, self.player.id)
+        self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board,
+                                                       self.pot, self.dealer, self.actions, BLINDS[1],
+                                                       self.global_step, self.b_round)
+
+        #self.player.remember(self.experiences[self.player.id])
+
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
         if self.action.type in {'all in', 'bet', 'call'}:  # impossible to bet/call/all in 0
             try:
                 assert self.action.value > 0
-                pass
             except AssertionError:
                 raise AssertionError
 
