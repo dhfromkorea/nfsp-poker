@@ -8,7 +8,7 @@ import math
 class ReplayBufferManager:
     '''
     use only rank based type for now.
-    TODO: support proportion based and nsfp
+    TODO: support proportion based and nfsp
     see this example
     https://github.com/Damcy/cascadeLSTMDRL/blob/a6c502bc93197adb36adc8313cc925fdb12c08ee/agent/src/QLearner.py
     '''
@@ -116,7 +116,7 @@ class ReplayBufferManager:
         if self.target == 'rl':
             exps, imp_weights, exp_ids = self._buffer.sample(global_step)
             if exps == False:
-                import pdb;pdb.set_trace()
+                raise Exception('check learn start vs.')
             return self._batch_stack(exps), imp_weights, exp_ids
         else:
             exps = self._buffer.sample()

@@ -46,9 +46,7 @@ class RankExperienceReplay(object):
         res = {}
         #import pdb;pdb.set_trace()
         n_partitions = self.partition_num
-        # debug
         partition_num = 1
-        # partition_num = 0
         # each part size
         partition_size = math.floor(self.size / n_partitions)
         for n in range(partition_size, self.size + 1, partition_size):

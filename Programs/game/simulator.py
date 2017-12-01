@@ -21,6 +21,7 @@ INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
+# @debug
 P1_ETA = 0.1
 P2_ETA = 0.1
 
@@ -204,6 +205,7 @@ class Simulator:
                 self.experiences[0] = self.make_experience(self.players[0], last_action, self.new_game, self.board,
                                                            self.pot, self.dealer, self.actions, BLINDS[1],
                                                            self.global_step, self.b_round)
+
                 self.players[0].remember(self.experiences[0])
         if len(self.actions[self.b_round][1]) > 0:
             if self.players[1].player_type == 'nfsp':
@@ -282,10 +284,17 @@ class Simulator:
             return
 
         # RL : Store experiences in memory. Just for the agent
-        if self.player.player_type == 'nsfp':
+        if self.player.player_type == 'nfsp':
             self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board,
                                                                     self.pot, self.dealer, self.actions, BLINDS[1],
                                                                     self.global_step, self.b_round)
+            # TODO: can remove
+            #p1_buffer = self.players[0].memory_rl._buffer
+            #p2_buffer = self.players[1].memory_rl._buffer
+            #if p1_buffer.record_size > 0 and p2_buffer.record_size > 0:
+            #    msg =  "p1 and p2 should not share memory buffers"
+            #    assert p1_buffer._experience[p1_buffer.record_size] != p2_buffer._experience[p2_buffer.record_size], msg
+
             self.player.remember(self.experiences[self.player.id])
 
         # TRANSITION STATE DEPENDING ON THE ACTION YOU TOOK
