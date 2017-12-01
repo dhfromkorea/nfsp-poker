@@ -188,8 +188,6 @@ class NeuralFictitiousPlayer(Player):
             self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):
-        #if self.id == 0:
-            #import pdb;pdb.set_trace()
         self.memory_rl.store_experience(exp)
         if self.is_Q_used:
             # if action was chosen by e-greedy policy
