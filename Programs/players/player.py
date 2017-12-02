@@ -201,7 +201,7 @@ class NeuralFictitiousPlayer(Player):
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)
-        if self.is_Q_used:
+        if self.is_Q_used and not exp['is_terminal']:
             # if action was chosen by e-greedy policy
             # exp should be just (s,a)
             simple_exp = (exp['s'], exp['a'])

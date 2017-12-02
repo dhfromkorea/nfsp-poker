@@ -19,6 +19,8 @@ class Card:
     RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
     SUITS = ['h', 'c', 's', 'd']
     IDX_TO_RANK = {k:v for k,v in enumerate(RANKS)}
+    RANK_TO_IDX = {v:k for k,v in enumerate(RANKS)}
+    IDX_TO_SUIT = {k:v for k,v in enumerate(SUITS)}
 
     def __init__(self, rank, suit):
         self.rank = rank
@@ -31,6 +33,21 @@ class Card:
 
     def __repr__(self):
         return self.rank + self.suit
+
+    def __eq__(self, other):
+        return (self.rank == other.rank) and (self.suit == other.suit)
+
+    def __le__(self, other):
+        return self.RANK_TO_IDX[self.rank] <= self.RANK_TO_IDX[other.rank]
+
+    def __ge__(self, other):
+        return self.RANK_TO_IDX[self.rank] >= self.RANK_TO_IDX[other.rank]
+
+    def __lt__(self, other):
+        return self.RANK_TO_IDX[self.rank] < self.RANK_TO_IDX[other.rank]
+
+    def __gt__(self, other):
+        return self.RANK_TO_IDX[self.rank] > self.RANK_TO_IDX[other.rank]
 
 
 class Deck:
@@ -230,6 +247,11 @@ def cards_to_array(cards):
                 idx = 2
             array[idx, value, suit] = 1
         return array
+
+
+def array_to_card(array):
+    i, j = np.nonzero(array.sum(0))
+    return [Card(Card.IDX_TO_RANK[ii], Card.IDX_TO_SUIT[jj]) for ii, jj in zip(i, j)]
 
 
 class Action:
@@ -633,3 +655,17 @@ def one_hot_encode_actions(actions):
         # actions_buckets[indices != 5] += indicator(values[indices != 5])
         # actions_buckets[indices != 4] += indicator(values[indices != 4])
     return actions_buckets
+
+
+if __name__ == '__main__':
+    for j in range(10):
+        print(j)
+        deck = Deck()
+        deck.populate()
+        deck.shuffle()
+        cards = []
+        for i in range(3):
+            cards.append(deck.cards.pop())
+        print(list(sorted(cards)))
+        print(list(sorted(array_to_card(cards_to_array(cards)))))
+        print()
