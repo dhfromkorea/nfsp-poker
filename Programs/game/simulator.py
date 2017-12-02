@@ -262,6 +262,7 @@ class Simulator:
             if len(self.actions[last_round][1]) > 0:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
+        self.update_play_history_with_final_rewards()
 
         for p in self.players:
             if p.player_type == 'nfsp':
@@ -340,18 +341,6 @@ class Simulator:
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
 
-        # we save play history data here
-        # we're computing exp tuple twice here (ugly..)
-        self.play_history[self.global_step] = {}
-        ph = self.play_history[self.global_step]
-        exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
-        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a']}
-        ph['game'] = {
-                      'episode_index': self.games['#episodes'],
-                      'to_play': self.to_play,
-                      'b_round': self.b_round
-                      }
-
         if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
             self.to_play = 1 - self.to_play
             self.null += 1
@@ -361,6 +350,18 @@ class Simulator:
                 return
             # go to the next agreement step
             return
+
+        # we save play history data here
+        # we're computing exp tuple twice here (ugly..)
+        self.play_history[self.global_step] = {}
+        ph = self.play_history[self.global_step]
+        exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
+        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': exp['r']}
+        ph['game'] = {
+                      'episode_index': self.games['#episodes'],
+                      'to_play': self.to_play,
+                      'b_round': self.b_round
+                      }
 
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
@@ -409,6 +410,14 @@ class Simulator:
             self._save_results(self.play_history, self.play_history_path)
             self._save_results(self.neural_network_history, self.neural_network_history_path)
             print(self.games['n'], " games over")
+
+    def update_play_history_with_final_rewards(self):
+        try:
+            self.play_history[self.global_step][0]['r'] += self.experiences[0]['final_reward']
+            self.play_history[self.global_step - 1][1]['r'] += self.experiences[1]['final_reward']
+        except KeyError:
+            self.play_history[self.global_step - 1][0]['r'] += self.experiences[0]['final_reward']
+            self.play_history[self.global_step][1]['r'] += self.experiences[1]['final_reward']
 
     def _save_results(self, new_data, path):
         if os.path.exists(path):
@@ -606,7 +615,8 @@ class Simulator:
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        reward_ = -action.value - int(new_game) * (b_round == 0) * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
+        should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0)*(b_round == 0))
+        reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
         # we need to inform replay manager of some extra stuff
