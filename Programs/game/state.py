@@ -2,12 +2,12 @@ import numpy as np
 import torch as t
 from torch.autograd import Variable
 from game.game_utils import cards_to_array, actions_to_array
+from game.utils import variable
 
-
-def create_state_variable(state):
+def create_state_variable(state, cuda=False):
     # TODO: check if dtype should be handled individually
-    dtype = t.FloatTensor
-    f = lambda x: Variable(t.from_numpy(x).type(dtype), requires_grad=False)
+    # do not use this. use variable() in utils
+    f = lambda x: variable(x, cuda=cuda)
     return [f(e) for e in state]
 
 
@@ -29,7 +29,7 @@ def create_state_vars_batch(states_batch):
     return state_vars
 
 
-def build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=True):
+def build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False):
     # @todo: add opponent modeling
     """
     Return state as numpy arrays (inputs of Q networks)

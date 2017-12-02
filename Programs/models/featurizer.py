@@ -188,7 +188,11 @@ class FeaturizerManager():
         if os.path.isfile(path):
             # TODO: hardcoding hdim and nfliters
             f = CardFeaturizer1(hdim=50, n_filters=10, cuda=cuda)
-            f.load_state_dict(t.load(path))
+            if cuda:
+                f.load_state_dict(t.load(path, map_location=lambda storage, loc:storage.cuda(0)))
+            else:
+                f.load_state_dict(t.load(path))
+            print('loaded gpu-enabled Featurizer? -> ', next(f.parameters()).is_cuda)
             return f
         else:
             raise LoadModelError('The path does not exist')
