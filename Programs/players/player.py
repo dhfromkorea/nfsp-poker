@@ -83,10 +83,20 @@ class NeuralFictitiousPlayer(Player):
     NFSP
     '''
 
-    def __init__(self, pid, strategy, stack, name,
-                 learn_start, memory_rl_conf={}, memory_sl_conf={},
-                 is_training=True, learning_rate=1e-3, gamma=.95,
-                 target_update=1000, verbose=False, cuda=False):
+    def __init__(self,
+                 pid,
+                 strategy,
+                 stack,
+                 name,
+                 learn_start,
+                 memory_rl_conf={},
+                 memory_sl_conf={},
+                 is_training=True,
+                 learning_rate=1e-3,
+                 gamma=.95,
+                 target_update=1000,
+                 verbose=False,
+                 cuda=False):
         # we may not need this inheritance
         super().__init__(pid, strategy, stack)
         self.cuda = cuda
@@ -163,28 +173,30 @@ class NeuralFictitiousPlayer(Player):
         '''
         '''
         # sample a minibatch of experiences
-        gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
+        #gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
+        gamma = variable([self.gamma], cuda=self.cuda)
         exps, imp_weights, ids = self.memory_rl.sample(global_step)
-        state_vars = [variable(s) for s in exps[0]]
-        action_vars = variable(exps[1])
-        imp_weights = variable(imp_weights)
-        rewards = variable(exps[2].astype(np.float32))
-        next_state_vars = [variable(s) for s in exps[3]]
+        state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
+        action_vars = variable(exps[1], cuda=self.cuda)
+        imp_weights = variable(imp_weights, cuda=self.cuda)
+        rewards = variable(exps[2].astype(np.float32), cuda=self.cuda)
+        next_state_vars = [variable(s, cuda=self.cuda) for s in exps[3]]
 
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
             td_deltas = self.strategy._Q.learn(state_vars, Q_targets, imp_weights)
-            self.memory_rl.update(ids, td_deltas.data.numpy())
+            self.memory_rl.update(ids, td_deltas.data.cpu().numpy())
 
     def _learn_sl(self, global_step):
         '''
        reservior sampling from M_sl
        '''
         if self.is_training:
+            import pdb;pdb.set_trace()
             exps = self.memory_sl.sample(global_step)
-            state_vars = [variable(s) for s in exps[0]]
+            state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
             # 4 x 11 each column is torch variable
-            action_vars = variable(exps[1])
+            action_vars = variable(exps[1], cuda=self.cuda)
             self.strategy._pi.learn(state_vars, action_vars)
 
     def remember(self, exp):

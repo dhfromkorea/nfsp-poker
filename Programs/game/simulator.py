@@ -13,8 +13,19 @@ from models.featurizer import FeaturizerManager
 from time import time
 import numpy as np
 import torch as t
+import pickle
 import models.q_network
+from time import time
+import os.path
 from torch.autograd import Variable
+
+# paths
+
+#SAVED_FEATURIZER_PATH = '/home/dhfromkorea/Dropbox/master_personal/code_dh/scripts/harvard/courses/cs281-project/Programs/data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
+SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
+GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
+PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
+NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
 
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
@@ -46,32 +57,72 @@ class Simulator:
     TODO: couple players with networks
     """
 
-    def __init__(self, featurizer_path,
+    def __init__(self, featurizer_path=SAVED_FEATURIZER_PATH,
                  # this should be set to a power of two for buffers
+                 game_score_history_path=GAME_SCORE_HISTORY_PATH,
+                 play_history_path=PLAY_HISTORY_PATH,
+                 neural_network_history_path=NEURAL_NETWORK_HISTORY_PATH,
                  learn_start=128,
                  verbose=False,
                  cuda=False,
                  p1_strategy='RL',
-                 p2_strategy='RL'):
+                 p2_strategy='RL',
+                 log_freq=100):
         # define msc.
         self.verbose = verbose
-
+        self.cuda = cuda
+        self.log_freq = log_freq
+        # historical data
+        self.game_score_history_path = game_score_history_path
+        self.play_history_path = play_history_path
+        self.neural_network_history_path = neural_network_history_path
+        self.neural_network_history = {}
+        self.play_history = {}
         # define other non-game mechanisms like players
         featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
-        Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
-        Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
-        Pi0 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
-        Pi1 = PiNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, featurizer)
+
+
+        # define game-level game states here
+        self.new_game = True
+        self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
+        self.global_step = 0
+
+
+        # define players
+        Q0 = QNetwork(n_actions=NUM_ACTIONS,
+                      hidden_dim=NUM_HIDDEN_LAYERS,
+                      featurizer=featurizer,
+                      game_info=self.games, # bad, but simple (@hack)
+                      player_id=0,
+                      neural_network_history=self.neural_network_history,
+                      cuda=cuda)
+        Q1 = QNetwork(n_actions=NUM_ACTIONS,
+                      hidden_dim=NUM_HIDDEN_LAYERS,
+                      featurizer=featurizer,
+                      game_info=self.games, # bad, but simple (@hack)
+                      player_id=1,
+                      neural_network_history=self.neural_network_history,
+                      cuda=cuda)
+        Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
+                      hidden_dim=NUM_HIDDEN_LAYERS,
+                      featurizer=featurizer,
+                      game_info=self.games, # bad, but simple (@hack)
+                      player_id=0,
+                      neural_network_history=self.neural_network_history,
+                      cuda=cuda)
+        Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
+                      hidden_dim=NUM_HIDDEN_LAYERS,
+                      featurizer=featurizer,
+                      game_info=self.games, # bad, but simple (@hack)
+                      player_id=1,
+                      neural_network_history=self.neural_network_history,
+                      cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
         self.players = self._generate_player_instances(p1_strategy, p2_strategy,
                                                        Q_networks, Pi_networks,
                                                        learn_start, verbose)
 
-        # define battle-level game states here
-        self.new_game = True
-        self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
-        self.global_step = 0
 
         # define episode-level game states here
         self.deck = Deck()
@@ -109,13 +160,16 @@ class Simulator:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True), INITIAL_MONEY, p_names[p_id], verbose=verbose))
                 p_id += 1
             elif strategy in NFSP_strategies:
-                strategy = StrategyNFSP(Q_networks[p_id], Pi_networks[p_id], ETAS[p_id])
+                strategy = StrategyNFSP(Q_networks[p_id],
+                                        Pi_networks[p_id],
+                                        ETAS[p_id],
+                                        cuda=self.cuda)
                 nfp = NeuralFictitiousPlayer(pid=p_id,
                                              strategy=strategy,
                                              stack=INITIAL_MONEY,
                                              name=p_names[p_id],
                                              learn_start=learn_start,
-                                             verbose=verbose)
+                                             verbose=verbose, cuda=self.cuda)
                 players.append(nfp)
                 p_id += 1
         return players
@@ -206,11 +260,28 @@ class Simulator:
         last_round = get_last_round(self.actions, 1)
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if len(self.actions[last_round][1]) > 0:
-                self.players[1].remember(self.experiences[1])
+                if self.players[1].player_type == 'nfsp':
+                    self.players[1].remember(self.experiences[1])
 
         for p in self.players:
             if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
+
+        '''
+          {
+          'episode_id' :
+               'player_1': {
+                    Q : Q(s,a),
+                    Q_target: taget_Q(s,a),
+                    pi: pi(s) -> action_probs
+                },
+               'player_2': {
+                    Q : Q(s,a),
+                    Q_target: taget_Q(s,a),
+                    pi: pi(s) -> action_probs
+                },
+          }
+        '''
 
         self._reset_variables()
         # TODO: remove this! temp variable
@@ -269,6 +340,18 @@ class Simulator:
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
 
+        # we save play history data here
+        # we're computing exp tuple twice here (ugly..)
+        self.play_history[self.global_step] = {}
+        ph = self.play_history[self.global_step]
+        exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
+        ph[self.player.id] = {'s': exp['s'], 'a': exp['a']}
+        ph['game'] = {
+                      'episode_index': self.games['#episodes'],
+                      'to_play': self.to_play,
+                      'b_round': self.b_round
+                      }
+
         if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
             self.to_play = 1 - self.to_play
             self.null += 1
@@ -318,10 +401,27 @@ class Simulator:
         self.agreed = agreement(self.actions, self.b_round)
         self.to_play = 1 - self.to_play
 
-    def update_winnings(self, log_freq=100):
+    def update_winnings(self):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
-        if self.games['n'] % log_freq == 0:
+        if self.games['n'] % self.log_freq == 0:
+            # we save all history data here
+            self._save_results(self.games['winnings'], self.game_score_history_path)
+            self._save_results(self.play_history, self.play_history_path)
+            self._save_results(self.neural_network_history, self.neural_network_history_path)
             print(self.games['n'], " games over")
+
+    def _save_results(self, new_data, path):
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                # extend the existing data with the new data
+                data = pickle.load(f)
+                data.update(new_data)
+
+            with open(path, 'wb') as f:
+                pickle.dump(data, f)
+        else:
+            with open(path, 'wb') as f:
+                pickle.dump(new_data, f)
 
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:

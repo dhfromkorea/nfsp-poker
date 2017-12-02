@@ -5,7 +5,7 @@ They should all have the same signature, but don't always use all this informati
 """
 from game.game_utils import *
 from game.state import build_state
-from game.utils import softmax
+from game.utils import softmax, variable
 import numpy as np
 import random
 import torch as t
@@ -87,7 +87,8 @@ def strategy_mirror(player, board, pot, actions, b_round, opponent_stack, oppone
             return mirror_action
 
 
-def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q, greedy=True, blinds=BLINDS, verbose=False, eps=0):
+def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q,
+                    greedy=True, blinds=BLINDS, verbose=False, eps=0, cuda=False):
     """
     Take decision using Q values (in a greedy or random way)
     :param player:
@@ -103,9 +104,10 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     :return:
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
-    state = build_state(player, board, pot, actions, opponent_stack, blinds[1])
+    state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=False)
+    state = [variable(s, cuda=cuda) for s in state]
     Q_values = Q.forward(*state)[0].squeeze()  # it has multiple outputs, the first is the Qvalues
-    Q_values = Q_values.data.numpy()
+    Q_values = Q_values.data.cpu().numpy()
 
     # choose action in a greedy way
     if greedy:
@@ -134,7 +136,7 @@ def strategy_RL(Q, greedy):
 
 
 class StrategyNFSP():
-    def __init__(self, Q, pi, eta, eps=.05, is_greedy=True, verbose=False):
+    def __init__(self, Q, pi, eta, eps=.05, is_greedy=True, verbose=False, cuda=False):
         self._Q = Q
         self._pi = pi
         self._target_Q = Q
@@ -143,6 +145,7 @@ class StrategyNFSP():
         self.is_Q_used = False
         self.is_greedy = is_greedy
         self.verbose = verbose
+        self.cuda = cuda
 
     def choose_action(self, player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
         if player.is_all_in:
@@ -152,11 +155,13 @@ class StrategyNFSP():
             # use epsilon-greey policy
             action = strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack,
                                      opponent_side_pot, self._Q, greedy=self.is_greedy, blinds=blinds,
-                                     verbose=self.verbose, eps=self.eps)
+                                     verbose=self.verbose, eps=self.eps, cuda=self.cuda)
             self.is_Q_used = True
         else:
             # use average policy
-            state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=True)
+            state = build_state(player, board, pot, actions, opponent_stack, blinds[1],
+                                as_variable=False)
+            state = [variable(s, cuda=self.cuda) for s in state]
             action_probs = self._pi.forward(*state).squeeze()
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
             # print('possible_actions')
@@ -167,7 +172,7 @@ class StrategyNFSP():
             # print('valid actions prob')
             # print(valid_action_probs)
             valid_action_probs /= t.sum(valid_action_probs)
-            action = bucket_to_action(sample_action(idx, valid_action_probs.data.numpy()), actions, b_round, player, opponent_side_pot)
+            action = bucket_to_action(sample_action(idx, valid_action_probs.data.cpu().numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = False
         return action, self.is_Q_used
 

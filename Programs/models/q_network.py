@@ -71,6 +71,7 @@ class CardFeaturizer1(t.nn.Module):
             # configure the model params on gpu
             self.cuda()
 
+
     def forward(self, hand, board):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
@@ -86,7 +87,10 @@ class CardFeaturizer1(t.nn.Module):
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
         # Process board and hand to detect straights using convolutions with kernel size 5, 3, and 3 with dilation
-        kinds_straight = selu(dropout(self.conv1((kinds > 0).float())))
+        try:
+            kinds_straight = selu(dropout(self.conv1((kinds > 0).float())))
+        except:
+            import pdb;pdb.set_trace()
         kinds_straight = t.cat([
             selu(dropout(self.conv2(kinds_straight))),
             selu(dropout(self.conv3(kinds_straight))),
@@ -169,8 +173,19 @@ class SharedNetwork(t.nn.Module):
 
 
 class QNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, pi_network=None,
-                 learning_rate=1e-3):
+    def __init__(self,
+                 n_actions,
+                 hidden_dim,
+                 featurizer,
+                 game_info,
+                 player_id,
+                 neural_network_history,
+                 is_target_Q=False,
+                 shared_network=None,
+                 pi_network=None,
+                 learning_rate=1e-3,
+                 cuda=False):
+
         super(QNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -195,13 +210,29 @@ class QNetwork(t.nn.Module):
         self.criterion = nn.MSELoss()
         self.optim = optim.Adam(self.parameters(), lr=learning_rate)
 
+        # to initialize network on gpu
+        if cuda:
+            self.cuda()
+
+        # for saving neural network history data
+        self.game_info = game_info
+        self.player_id = player_id # know the owner of the network
+        self.neural_network_history = neural_network_history
+
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
-        # import pdb; pdb.set_trace()
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(self.fc27(situation_with_opponent))
         q_values = self.fc28(q_values)
+
+        # for saving neural network history data
+        episode_id = self.game_info['#episodes']
+        if not episode_id in self.neural_network_history:
+            self.neural_network_history[episode_id] = {}
+        self.neural_network_history[episode_id][self.player_id] = {}
+        self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
+
         return q_values
 
     def learn(self, states, Q_targets, imp_weights):
@@ -227,7 +258,17 @@ class QNetwork(t.nn.Module):
 
 
 class PiNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim, featurizer, shared_network=None, q_network=None, learning_rate=1e-3):
+    def __init__(self,
+                 n_actions,
+                 hidden_dim,
+                 featurizer,
+                 game_info,
+                 player_id,
+                 neural_network_history,
+                 shared_network=None,
+                 q_network=None,
+                 learning_rate=1e-3,
+                 cuda=False):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
         self.featurizer = featurizer
@@ -248,6 +289,15 @@ class PiNetwork(t.nn.Module):
         self.fc28 = fc(hdim, n_actions)
         self.optim = optim.Adam(self.parameters(), lr=learning_rate)
 
+        if cuda:
+            self.cuda()
+
+        # for saving neural network history data
+        self.game_info = game_info
+        self.player_id = player_id # know the owner of the network
+        self.neural_network_history = neural_network_history
+
+
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
@@ -257,10 +307,18 @@ class PiNetwork(t.nn.Module):
 
         pi_values = selu(self.fc27(situation_with_opponent))
         pi_values = softmax(self.fc28(pi_values))
+
+        # for saving neural network history data
+        episode_id = self.game_info['#episodes']
+        if not episode_id in self.neural_network_history:
+            self.neural_network_history[episode_id] = {}
+        self.neural_network_history[episode_id][self.player_id] = {}
+        self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
+
         return pi_values
-    
+
     def learn(self, states, actions):
-        '''    From Torch site   
+        '''    From Torch site
          loss = nn.CrossEntropyLoss()
          input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
          target = autograd.Variable(torch.LongTensor(3).random_(5))
