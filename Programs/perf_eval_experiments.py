@@ -7,6 +7,7 @@
 import glob as g
 import pickle
 import evaluation.expt_utils as eu
+import argparse
 
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
@@ -20,14 +21,39 @@ def load_results(path):
 
 
 if __name__ == '__main__':
-    cuda = False
+    parser = argparse.ArgumentParser(description='process configuration vars')
+    parser.add_argument('--cuda', action='store_true', dest='cuda')
+    parser.add_argument('--verbose', action='store_true', dest='verbose')
+    parser.set_defaults(cuda=False)
+    parser.set_defaults(verbose=False)
+    args = parser.parse_args()
+    cuda = args.cuda
+    verbose = args.verbose
+
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
+
+    # example
+    # caution: with partition 2**11, it will take minutes to initialize memory
+    memory_rl_config = {
+                   'size': 2 ** 17,
+                   'partition_num': 2 ** 11,
+                   'total_step': 10 ** 9,
+                   'batch_size': 2 ** 5
+                   }
+    memory_sl_config = {
+                   'size': 2 ** 15,
+                   'batch_size': 2 ** 6
+                   }
     results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
-                                                      learn_start=2**7,  # 64
+                                                      learn_start=2**7,
                                                       num_games=10000,
                                                       mov_avg_window=100,
-                                                      cuda=cuda
+                                                      log_freq=100,
+                                                      memory_rl_config=memory_rl_config,
+                                                      memory_sl_config=memory_sl_config,
+                                                      cuda=cuda,
+                                                      verbose=verbose
                                                       )
     # eu.plot_results(results_dict)
 

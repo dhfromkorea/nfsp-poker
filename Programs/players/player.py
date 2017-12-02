@@ -89,8 +89,8 @@ class NeuralFictitiousPlayer(Player):
                  stack,
                  name,
                  learn_start,
-                 memory_rl_conf={},
-                 memory_sl_conf={},
+                 memory_rl_config={},
+                 memory_sl_config={},
                  is_training=True,
                  learning_rate=1e-3,
                  gamma=.95,
@@ -124,8 +124,8 @@ class NeuralFictitiousPlayer(Player):
         # so we can do player.model.Q, player.model.pi
         # experience replay
         self.learn_start = learn_start
-        self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_conf, learn_start=learn_start)
-        self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_conf, learn_start=learn_start)
+        self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_config, learn_start=learn_start)
+        self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_config, learn_start=learn_start)
 
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
         '''

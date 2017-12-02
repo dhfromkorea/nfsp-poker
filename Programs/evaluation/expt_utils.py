@@ -25,20 +25,33 @@ def moving_avg(x, pid, window):
 big_blind = BLINDS[1]
 
 
-def conduct_games(p1_strategy, p2_strategy, cuda=True, learn_start=128, num_games=1e4, num_simulations=1, ret_player_ids=[0, 1], mov_avg_window=5):
+def conduct_games(p1_strategy,
+                  p2_strategy,
+                  memory_rl_config={},
+                  memory_sl_config={},
+                  learn_start=128,
+                  num_games=1e4,
+                  num_simulations=1,
+                  ret_player_ids=[0, 1],
+                  mov_avg_window=5,
+                  log_freq=100,
+                  cuda=False,
+                  verbose=False):
     # TODO:
     # 1. save_frequency -> output a pickle file which holds game results
     game_sim = simulator.Simulator(p1_strategy=p1_strategy,
                                    p2_strategy=p2_strategy,
                                    learn_start=learn_start,
                                    cuda=cuda,
-                                   verbose=True,
-                                   log_freq=4)
+                                   memory_rl_config=memory_rl_config,
+                                   memory_sl_config=memory_sl_config,
+                                   verbose=verbose,
+                                   log_freq=log_freq)
     results = game_sim.start(num_games, return_results=True)
     # results = amount of money won/lost for each player
     # results = {player_id: +-reward}
     final_res = {}
-    print(results)
+    #print(results)
     for player_id in ret_player_ids:
         player_res = []
         for game in results.keys():

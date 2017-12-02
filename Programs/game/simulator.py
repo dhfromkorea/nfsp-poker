@@ -32,10 +32,6 @@ INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
-# @debug
-# P1_ETA = 0.1
-# P2_ETA = 0.1
-ETAS = {0: 0.1, 1: 0.1}
 
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
@@ -62,24 +58,32 @@ class Simulator:
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
                  play_history_path=PLAY_HISTORY_PATH,
                  neural_network_history_path=NEURAL_NETWORK_HISTORY_PATH,
+                 memory_rl_config={},
+                 memory_sl_config={},
+                 log_freq=100,
                  learn_start=128,
+                 eta_p1 = .1,
+                 eta_p2 = .1,
                  verbose=False,
                  cuda=False,
                  p1_strategy='RL',
-                 p2_strategy='RL',
-                 log_freq=100):
+                 p2_strategy='RL'):
         # define msc.
         self.verbose = verbose
         self.cuda = cuda
         self.log_freq = log_freq
+
+        # NFSP-speicfic network hyperparams
+        self.etas = {0: eta_p1, 1: eta_p2}
+        self.memory_rl_config = memory_rl_config
+        self.memory_sl_config = memory_sl_config
+
         # historical data
         self.game_score_history_path = game_score_history_path
         self.play_history_path = play_history_path
         self.neural_network_history_path = neural_network_history_path
         self.neural_network_history = {}
         self.play_history = {}
-        # define other non-game mechanisms like players
-        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
 
         # define game-level game states here
         self.new_game = True
@@ -87,6 +91,7 @@ class Simulator:
         self.global_step = 0
 
         # define players
+        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
         Q0 = QNetwork(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
@@ -159,14 +164,18 @@ class Simulator:
             elif strategy in NFSP_strategies:
                 strategy = StrategyNFSP(Q_networks[p_id],
                                         Pi_networks[p_id],
-                                        ETAS[p_id],
+                                        self.etas[p_id],
                                         cuda=self.cuda)
+
                 nfp = NeuralFictitiousPlayer(pid=p_id,
                                              strategy=strategy,
                                              stack=INITIAL_MONEY,
                                              name=p_names[p_id],
+                                             memory_rl_config=self.memory_rl_config,
+                                             memory_sl_config=self.memory_sl_config,
                                              learn_start=learn_start,
-                                             verbose=verbose, cuda=self.cuda)
+                                             verbose=verbose,
+                                             cuda=self.cuda)
                 players.append(nfp)
                 p_id += 1
         return players
