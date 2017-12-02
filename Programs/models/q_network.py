@@ -87,10 +87,7 @@ class CardFeaturizer1(t.nn.Module):
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
         # Process board and hand to detect straights using convolutions with kernel size 5, 3, and 3 with dilation
-        try:
-            kinds_straight = selu(dropout(self.conv1((kinds > 0).float())))
-        except:
-            import pdb;pdb.set_trace()
+        kinds_straight = selu(dropout(self.conv1((kinds > 0).float())))
         kinds_straight = t.cat([
             selu(dropout(self.conv2(kinds_straight))),
             selu(dropout(self.conv3(kinds_straight))),
@@ -163,11 +160,8 @@ class SharedNetwork(t.nn.Module):
         pbds = selu(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1)))
 
         # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
-        try:
-            situation_with_opponent = selu(self.fc25(t.cat([plays, pbds, cards_features], -1)))
-            situation_with_opponent = selu(self.fc26(situation_with_opponent))
-        except:
-            import pdb;pdb.set_trace()
+        situation_with_opponent = selu(self.fc25(t.cat([plays, pbds, cards_features], -1)))
+        situation_with_opponent = selu(self.fc26(situation_with_opponent))
 
         return situation_with_opponent
 

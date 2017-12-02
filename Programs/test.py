@@ -12,11 +12,12 @@ def get_actions():
 
 def get_players():
     NUM_HIDDEN_LAYERS = 10
-    NUM_ACTIONS = 14
+    NUM_ACTIONS = 16
     f = CardFeaturizer1(NUM_HIDDEN_LAYERS, 20)
-    Q = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, f)
-    players = [Player(0, strategy_RL(Q, True), 100, verbose=True, name='SB'),
-               Player(1, strategy_RL(Q, True), 100, verbose=True, name='DH')]
+    Q0 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, f, None, 0, None)
+    Q1 = QNetwork(NUM_ACTIONS, NUM_HIDDEN_LAYERS, f, None, 1, None)
+    players = [Player(0, strategy_RL(Q0, True), 100, verbose=True, name='SB'),
+               Player(1, strategy_RL(Q1, True), 100, verbose=True, name='DH')]
     return players
 
 
@@ -25,12 +26,6 @@ def c(c_str):
         return Card(c_str[0], c_str[1])
     else:
         return Card('10', c_str[-1])
-
-
-def test_evaluate_hand():
-    cards = [c('3d'), c('3c'), c('3s'), c('Ad'), c('10s'), c('10h'), c('10d')]
-    evaluation = evaluate_hand(cards)
-    assert False
 
 
 def test_blinds():
@@ -796,3 +791,22 @@ def test_all_actions_preflop():
     # it can either go all in or fold
     possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
     assert possible_actions == [-1, 14], possible_actions
+
+    # 12th situation
+    actions = get_actions()
+    players = get_players()
+    players[1].is_dealer = True
+    players[1].stack = 52
+    players[0].stack = 148
+    pot = blinds(players)
+
+    actions[0][1].append(Action('raise', 25, min_raise=False))
+    actions[0][0].append(Action('raise', 25, min_raise=True))
+    actions[0][1].append(Action('all in', 25))
+    players[1].side_pot = 52
+    players[0].stack = 96
+    players[1].stack = 0
+    # it can either go all in or fold
+    possible_actions = authorized_actions_buckets(players[0], actions, 0, players[1].side_pot)
+    assert possible_actions == [-1] + list(range(8, 14)), possible_actions
+

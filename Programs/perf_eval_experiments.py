@@ -39,6 +39,9 @@ if __name__ == '__main__':
     print('game history')
     print(load_results(game_score_history_paths))
     print('play history')
-    print(load_results(play_history_paths))
+    for k,v in load_results(play_history_paths).items():
+        print(k)
+        print(v)
+        print()
     print('neural network history')
     print(load_results(neural_network_history_paths))

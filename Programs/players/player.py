@@ -192,7 +192,6 @@ class NeuralFictitiousPlayer(Player):
        reservior sampling from M_sl
        '''
         if self.is_training:
-            import pdb;pdb.set_trace()
             exps = self.memory_sl.sample(global_step)
             state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
             # 4 x 11 each column is torch variable

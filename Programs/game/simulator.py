@@ -262,7 +262,10 @@ class Simulator:
             if len(self.actions[last_round][1]) > 0:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
-        self.update_play_history_with_final_rewards()
+        try:
+            self.update_play_history_with_final_rewards()
+        except KeyError:
+            raise KeyError
 
         for p in self.players:
             if p.player_type == 'nfsp':
@@ -341,8 +344,10 @@ class Simulator:
         self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
 
-        if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
-            self.global_step -= 1
+        if self.action.type == 'null':
+            # this happens when a player is all-in. In this case it can no longer play
+            # if the blinds put the player all-in
+            self.global_step -= 1  # no action is taken, so no transition should be stored, so global step should be the as before the player turn
             self.to_play = 1 - self.to_play
             self.null += 1
             if self.null >= 2:
@@ -374,7 +379,7 @@ class Simulator:
             self.player.remember(self.experiences[self.player.id])
 
         # UPDATE STATE DEPENDING ON THE ACTION YOU TOOK
-        # Sanity check: it should be impossible to bet/call/all in
+        # Sanity check: it should be impossible to bet/call/all in with value 0
         if self.action.type in {'all in', 'bet', 'call'}:
             assert self.action.value > 0
 
@@ -383,10 +388,7 @@ class Simulator:
             self._is_call_legit()
 
         # update pot, side pots, and stacks
-        if self.action.type == 'raise':
-            value = self.action.total
-        else:
-            value = self.action.value
+        value = self.action.total
         self._update_pot_and_stacks(value)
 
         # DRAMATIC ACTION MONITORING
@@ -396,12 +398,11 @@ class Simulator:
         # if fold, it is the end
         if self.action.type == 'fold':
             self._handle_fold()
-            # TODO: break with agreement=True?
             self.agreed = True
             return
 
         # otherwise, check if players came to an agreement
-        self.agreed = agreement(self.actions, self.b_round)
+        self.agreed = agreement(self.actions, self.b_round) or (self.all_in == 2)
         self.to_play = 1 - self.to_play
 
     def update_winnings(self):
@@ -606,7 +607,8 @@ class Simulator:
         if self.action.type == 'all in':
             self.all_in += 1
             self.player.is_all_in = True
-            if self.action.value <= self.players[1 - self.to_play].side_pot:
+            if self.player.side_pot <= self.players[1 - self.to_play].side_pot:
+            # if self.action.value <= self.players[1 - self.to_play].side_pot:
                 # in this case, the all in is a call and it leads to showdown
                 self.all_in += 1
         elif (self.action.type == 'call') and (self.all_in == 1):
