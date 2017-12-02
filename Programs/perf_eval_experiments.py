@@ -23,12 +23,12 @@ if __name__ == '__main__':
     cuda = False
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
-    results_dict['NFSP vs NFSP'] = eu.conduct_games('NFSP', 'NFSP',
-                                                    learn_start=64,
-                                                    num_games=10,
-                                                    mov_avg_window=2,
-                                                    cuda=cuda
-                                                    )
+    results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
+                                                      learn_start=2**7,  # 64
+                                                      num_games=10000,
+                                                      mov_avg_window=100,
+                                                      cuda=cuda
+                                                      )
     # eu.plot_results(results_dict)
 
     # pick the latest created file == results just created from the simulation above
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     print('game history')
     print(load_results(game_score_history_paths))
     print('play history')
-    for k,v in load_results(play_history_paths).items():
+    for k, v in load_results(play_history_paths).items():
         print(k)
         print(v)
         print()

@@ -27,5 +27,5 @@ if __name__ == '__main__':
                           featurizer_path=SAVED_FEATURIZER_PATH,
                           cuda=args.cuda,
                           p1_strategy='NFSP',
-                          p2_strategy='NFSP')
+                          p2_strategy='random')
     simulator.start()

@@ -21,7 +21,7 @@ from torch.autograd import Variable
 
 # paths
 
-#SAVED_FEATURIZER_PATH = '/home/dhfromkorea/Dropbox/master_personal/code_dh/scripts/harvard/courses/cs281-project/Programs/data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
+# SAVED_FEATURIZER_PATH = '/home/dhfromkorea/Dropbox/master_personal/code_dh/scripts/harvard/courses/cs281-project/Programs/data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
 SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
 PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
@@ -33,9 +33,9 @@ NUM_ROUNDS = 4  # pre, flop, turn, river
 NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
 # @debug
-#P1_ETA = 0.1
-#P2_ETA = 0.1
-ETAS = {0:0.1, 1:0.1}
+# P1_ETA = 0.1
+# P2_ETA = 0.1
+ETAS = {0: 0.1, 1: 0.1}
 
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL}
@@ -81,48 +81,45 @@ class Simulator:
         # define other non-game mechanisms like players
         featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
 
-
         # define game-level game states here
         self.new_game = True
         self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
         self.global_step = 0
 
-
         # define players
         Q0 = QNetwork(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
-                      game_info=self.games, # bad, but simple (@hack)
+                      game_info=self.games,  # bad, but simple (@hack)
                       player_id=0,
                       neural_network_history=self.neural_network_history,
                       cuda=cuda)
         Q1 = QNetwork(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
-                      game_info=self.games, # bad, but simple (@hack)
+                      game_info=self.games,  # bad, but simple (@hack)
                       player_id=1,
                       neural_network_history=self.neural_network_history,
                       cuda=cuda)
         Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
-                      hidden_dim=NUM_HIDDEN_LAYERS,
-                      featurizer=featurizer,
-                      game_info=self.games, # bad, but simple (@hack)
-                      player_id=0,
-                      neural_network_history=self.neural_network_history,
-                      cuda=cuda)
+                        hidden_dim=NUM_HIDDEN_LAYERS,
+                        featurizer=featurizer,
+                        game_info=self.games,  # bad, but simple (@hack)
+                        player_id=0,
+                        neural_network_history=self.neural_network_history,
+                        cuda=cuda)
         Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
-                      hidden_dim=NUM_HIDDEN_LAYERS,
-                      featurizer=featurizer,
-                      game_info=self.games, # bad, but simple (@hack)
-                      player_id=1,
-                      neural_network_history=self.neural_network_history,
-                      cuda=cuda)
+                        hidden_dim=NUM_HIDDEN_LAYERS,
+                        featurizer=featurizer,
+                        game_info=self.games,  # bad, but simple (@hack)
+                        player_id=1,
+                        neural_network_history=self.neural_network_history,
+                        cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
         self.players = self._generate_player_instances(p1_strategy, p2_strategy,
                                                        Q_networks, Pi_networks,
                                                        learn_start, verbose)
-
 
         # define episode-level game states here
         self.deck = Deck()
@@ -181,7 +178,7 @@ class Simulator:
         # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
         self.games['n'] += 1
         # buffer_length = buffer_rl.size
-        buffer_length = str(tuple([p.memory_rl._buffer.record_size for p in self.players if p.player_type == 'nfsp']+[p.memory_sl._buffer.record_size for p in self.players if p.player_type == 'nfsp']))
+        buffer_length = str(tuple([p.memory_rl._buffer.record_size for p in self.players if p.player_type == 'nfsp'] + [p.memory_sl._buffer.record_size for p in self.players if p.player_type == 'nfsp']))
 
         if self.verbose:
             t0 = time()
@@ -365,10 +362,10 @@ class Simulator:
         exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
         ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': exp['r']}
         ph['game'] = {
-                      'episode_index': self.games['#episodes'],
-                      'to_play': self.to_play,
-                      'b_round': self.b_round
-                      }
+            'episode_index': self.games['#episodes'],
+            'to_play': self.to_play,
+            'b_round': self.b_round
+        }
 
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
@@ -608,7 +605,7 @@ class Simulator:
             self.all_in += 1
             self.player.is_all_in = True
             if self.player.side_pot <= self.players[1 - self.to_play].side_pot:
-            # if self.action.value <= self.players[1 - self.to_play].side_pot:
+                # if self.action.value <= self.players[1 - self.to_play].side_pot:
                 # in this case, the all in is a call and it leads to showdown
                 self.all_in += 1
         elif (self.action.type == 'call') and (self.all_in == 1):
@@ -636,13 +633,13 @@ class Simulator:
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0)*(b_round == 0))
+        should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0) * (b_round == 0))
         reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
         # we need to inform replay manager of some extra stuff
         experience = {'s': state_,
-                      'a': action_ ,
+                      'a': action_,
                       'r': reward_,
                       'next_s': None,
                       't': step_,

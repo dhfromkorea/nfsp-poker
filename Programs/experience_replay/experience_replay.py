@@ -29,10 +29,10 @@ class ReplayBufferManager:
             having partition_num samples"
 
         if self.target == 'rl':
-            self.config = {'size': config.get('size', 2 ** 10),
+            self.config = {'size': config.get('size', 2 ** 17),  # 2**10
                            # this is a game-level parameter
                            'learn_start': learn_start,
-                           'partition_num': config.get('partition_num', 2 ** 4),
+                           'partition_num': config.get('partition_num', 2 ** 11),  # 2**4
                            # when bias decay schedule ends
                            'total_step': config.get('total_step', 10 ** 9),
                            'batch_size': config.get('batch_size', 2 ** 5)
