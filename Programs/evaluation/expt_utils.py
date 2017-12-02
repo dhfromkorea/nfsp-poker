@@ -17,39 +17,46 @@ import matplotlib.pyplot as plt
 from random import randint
 import numpy as np
 
-def moving_avg(x, window=100):
-    return [np.mean(x[k:k+window]) for k in range(len(x)-window)]
+
+def moving_avg(x, pid, window):
+    return [np.mean(x[k:k+window, pid]) for k in range(len(x)-window)]
 
 big_blind = BLINDS[1]
-SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/' + 'card_featurizer1.50-10.model.pytorch'
 
 
-def conduct_games(p1_strategy, p2_strategy, num_games = 1e4, num_simulations = 1,  
-                  ret_player_ids = [0], mov_avg_window = 0 ):
-    game_sim = simulator.Simulator(False, SAVED_FEATURIZER_PATH, p1_strategy = p1_strategy, 
-                                   p2_strategy = p2_strategy)
+def conduct_games(p1_strategy, p2_strategy, learn_start=128, num_games = 1e4, num_simulations = 1, ret_player_ids=[0, 1], mov_avg_window = 5):
+    # TODO:
+    # 1. save_frequency -> output a pickle file which holds game results
+    game_sim = simulator.Simulator(p1_strategy = p1_strategy,
+                                   p2_strategy = p2_strategy,
+                                   learn_start = learn_start,
+                                   cuda=True,
+                                   verbose=True,
+                                   log_freq=4)
     results = game_sim.start(num_games, return_results = True)
-    import pdb;pdb.set_trace()
+    # results = amount of money won/lost for each player
+    # results = {player_id: +-reward}
     final_res = {}
+    print(results)
     for player_id in ret_player_ids:
         player_res = []
         for game in results.keys():
-            player_res.append(results[game] / big_blind)
+            player_res.append(np.array(list(results[game])) / big_blind)
         if mov_avg_window > 0:
-            final_res[player_id] = moving_avg(np.array(player_res))
+            final_res[player_id] = moving_avg(np.array(player_res), player_id, mov_avg_window)
         else:
             final_res[player_id] = player_res
     return final_res
-        
-#Keys are expected to be experiment descriptions. 
+
+#Keys are expected to be experiment descriptions.
 #Values are expected to be results.
-def plot_results(results_dict, show=True, save = False, p_id = 0, plot_id = randint(1,1e8)):
+def plot_results(results_dict, show=False, save = False, p_id = 0, plot_id = randint(1,1e8)):
     title_font = {'fontname':'Arial', 'size':'16', 'color':'black', 'weight':'normal',
               'verticalalignment':'bottom'} # Bottom vertical alignment for more space
     axis_font = {'fontname':'Arial', 'size':'14'}
     for res in results_dict.keys():
         plt.plot(range(len(results_dict[res][p_id])), results_dict[res][p_id], label = res)
-    
+
     plt.ylabel("Milli Big Blinds/game", **axis_font)
     plt.xlabel("Game Number", **axis_font)
     plt.title("WinRates in different experiments", **title_font)
@@ -57,13 +64,13 @@ def plot_results(results_dict, show=True, save = False, p_id = 0, plot_id = rand
         plt.show()
     else:
         plt.savefig("WinRates_",plot_id)
-    
+
     print("Process done and plots saved")
-        
-        
-        
-      
-    
-    
-    
-     
+
+
+
+
+
+
+
+
