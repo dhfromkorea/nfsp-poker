@@ -24,13 +24,13 @@ def moving_avg(x, pid, window):
 big_blind = BLINDS[1]
 
 
-def conduct_games(p1_strategy, p2_strategy, learn_start=128, num_games = 1e4, num_simulations = 1, ret_player_ids=[0, 1], mov_avg_window = 5):
+def conduct_games(p1_strategy, p2_strategy, cuda=True, learn_start=128, num_games = 1e4, num_simulations = 1, ret_player_ids=[0, 1], mov_avg_window = 5):
     # TODO:
     # 1. save_frequency -> output a pickle file which holds game results
     game_sim = simulator.Simulator(p1_strategy = p1_strategy,
                                    p2_strategy = p2_strategy,
                                    learn_start = learn_start,
-                                   cuda=True,
+                                   cuda=cuda,
                                    verbose=True,
                                    log_freq=4)
     results = game_sim.start(num_games, return_results = True)
