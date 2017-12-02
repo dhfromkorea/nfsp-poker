@@ -342,6 +342,7 @@ class Simulator:
                                        self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
 
         if self.action.type == 'null':  # this happens when a player is all-in. In this case it can no longer play
+            self.global_step -= 1
             self.to_play = 1 - self.to_play
             self.null += 1
             if self.null >= 2:
@@ -350,6 +351,7 @@ class Simulator:
                 return
             # go to the next agreement step
             return
+        self.player.has_played = True
 
         # we save play history data here
         # we're computing exp tuple twice here (ugly..)
@@ -413,11 +415,15 @@ class Simulator:
 
     def update_play_history_with_final_rewards(self):
         try:
-            self.play_history[self.global_step][0]['r'] += self.experiences[0]['final_reward']
-            self.play_history[self.global_step - 1][1]['r'] += self.experiences[1]['final_reward']
+            if self.players[0].has_played:
+                self.play_history[self.global_step][0]['r'] += self.experiences[0]['final_reward']
+            if self.players[1].has_played:
+                self.play_history[self.global_step - 1][1]['r'] += self.experiences[1]['final_reward']
         except KeyError:
-            self.play_history[self.global_step - 1][0]['r'] += self.experiences[0]['final_reward']
-            self.play_history[self.global_step][1]['r'] += self.experiences[1]['final_reward']
+            if self.players[0].has_played:
+                self.play_history[self.global_step - 1][0]['r'] += self.experiences[0]['final_reward']
+            if self.players[1].has_played:
+                self.play_history[self.global_step][1]['r'] += self.experiences[1]['final_reward']
 
     def _save_results(self, new_data, path):
         if os.path.exists(path):
@@ -476,21 +482,32 @@ class Simulator:
         if self.players[self.winner].stack > 0:
             self.players[self.winner].stack += self.pot
 
+            # RL
+            if self.players[self.winner].player_type == 'nfsp':
+                if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
+                    self.experiences[self.winner]['final_reward'] = self.pot
+
         # if the winner is all in, it takes only min(what it put in the pot*2, pot)
         else:
             s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
             if s_pot[self.winner] * 2 > self.pot:
                 self.players[self.winner].stack += self.pot
+
+                # RL
+                if self.players[self.winner].player_type == 'nfsp':
+                    if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
+                        self.experiences[self.winner]['final_reward'] = self.pot
             else:
                 self.players[self.winner].stack += 2 * s_pot[self.winner]
                 self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
 
-        # RL
-        # If the agent won, gives it the chips and reminds him that it won the chips
-        # if the opponent immediately folds, then the MEMORY is empty and there is no reward to add since you didn't have the chance to act
-        if self.players[self.winner].player_type == 'nfsp':
-            if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
-                self.experiences[self.winner]['final_reward'] = self.pot
+                # RL
+                if self.players[self.winner].player_type == 'nfsp':
+                    if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
+                        self.experiences[self.winner]['final_reward'] = 2 * s_pot[self.winner]
+                if self.players[1 - self.winner].player_type == 'nfsp':
+                    if not self.players[1 - self.winner].memory_rl.is_last_step_buffer_empty:
+                        self.experiences[1 - self.winner]['final_reward'] = self.pot - 2 * s_pot[self.winner]
 
         self.experiences[0]['is_terminal'] = True
         self.experiences[1]['is_terminal'] = True
@@ -548,6 +565,8 @@ class Simulator:
         # RESET VARIABLES
         self.winner = None
         self.pot = 0
+        self.players[0].has_played = False
+        self.players[1].has_played = False
         self.dealer = 1 - self.dealer
         self.players[self.dealer].is_dealer = True
         self.players[1 - self.dealer].is_dealer = False

@@ -88,7 +88,7 @@ def strategy_mirror(player, board, pot, actions, b_round, opponent_stack, oppone
 
 
 def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, Q,
-                    greedy=True, blinds=BLINDS, verbose=False, eps=0, cuda=False):
+                    greedy=True, blinds=BLINDS, verbose=False, eps=0., cuda=False):
     """
     Take decision using Q values (in a greedy or random way)
     :param player:
