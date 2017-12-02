@@ -39,6 +39,7 @@ class ReplayBufferManager:
                            }
 
             dist_index = self.config['learn_start'] / self.config['size'] * self.config['partition_num']
+            assert self.config['learn_start'] * self.config['partition_num'] >= self.config['size'], "Memory RL intialization is wrong"
             assert math.floor(dist_index) == math.ceil(dist_index), "Memory_RL initialization should be consistent with the assertion here"
             self._buffer = RankExperienceReplay(self.config)
         elif self.target == 'sl':
