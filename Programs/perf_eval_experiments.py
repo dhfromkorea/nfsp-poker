@@ -21,16 +21,15 @@ def load_results(path):
 
 
 if __name__ == '__main__':
-
-    #Example
     results_dict = {}
     #results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
     results_dict['NFSP vs NFSP'] = eu.conduct_games('NFSP','NFSP',
                                                     learn_start = 64,
                                                     num_games = 20,
                                                     mov_avg_window = 2)
-    eu.plot_results(results_dict)
+    #eu.plot_results(results_dict)
 
+    # pick the latest created file == results just created from the simulation above
     game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH +'*')[-1]
     play_history_paths = g.glob(PLAY_HISTORY_PATH +'*')[-1]
     neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH +'*')[-1]
@@ -41,17 +40,5 @@ if __name__ == '__main__':
     print(load_results(play_history_paths))
     print('neural network history')
     print(load_results(neural_network_history_paths))
-'''
-Things to log
-1. game results (done)
-2. play history
-key: global_step
-values:
-   states
-   actions
-   game-level info (dealer, to_play, big_blind)
-3. network log
-- Q value
-- pi value (optional)
-'''
+
 
