@@ -5,7 +5,7 @@ from players.strategies import strategy_RL, strategy_random, strategy_mirror, St
 from players.player import Player, NeuralFictitiousPlayer
 
 from game.utils import get_last_round
-from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, action_to_array, cards_to_array
+from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, array_to_cards, action_to_array, cards_to_array
 from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
 
@@ -345,7 +345,7 @@ class Simulator:
         self.play_history[self.global_step] = {}
         ph = self.play_history[self.global_step]
         exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
-        ph[self.player.id] = {'s': exp['s'], 'a': exp['a']}
+        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a']}
         ph['game'] = {
                       'episode_index': self.games['#episodes'],
                       'to_play': self.to_play,

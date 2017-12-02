@@ -249,8 +249,15 @@ def cards_to_array(cards):
         return array
 
 
-def array_to_card(array):
-    i, j = np.nonzero(array.sum(0))
+def array_to_cards(array):
+    if array.max() == 0:
+        return []
+    if len(array.shape) == 2:
+        i, j = np.nonzero(array)
+    elif len(array.shape) == 3:
+        i, j = np.nonzero(array.sum(0))
+    elif len(array.shape) == 4:
+        i, j = np.nonzero(array.sum((0, 1)))
     return [Card(Card.IDX_TO_RANK[ii], Card.IDX_TO_SUIT[jj]) for ii, jj in zip(i, j)]
 
 
@@ -667,5 +674,5 @@ if __name__ == '__main__':
         for i in range(3):
             cards.append(deck.cards.pop())
         print(list(sorted(cards)))
-        print(list(sorted(array_to_card(cards_to_array(cards)))))
+        print(list(sorted(array_to_cards(cards_to_array(cards)))))
         print()
