@@ -1,5 +1,5 @@
 import torch as t
-from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid, AlphaDropout, BatchNorm1d as BN, PReLU
+from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid, AlphaDropout, BatchNorm1d as BN, PReLU, LeakyReLU
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
@@ -8,6 +8,7 @@ from game.game_utils import one_hot_encode_actions
 selu = SELU()
 softmax = Softmax()
 sigmoid = Sigmoid()
+leakyrelu = LeakyReLU()
 
 
 def get_shape(x):
@@ -328,6 +329,220 @@ class PiNetwork(t.nn.Module):
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))
         pi_values = softmax(dropout(self.fc28(pi_values)))
+
+        # for saving neural network history data
+        episode_id = self.game_info['#episodes']
+        if not episode_id in self.neural_network_history:
+            self.neural_network_history[episode_id] = {}
+        self.neural_network_history[episode_id][self.player_id] = {}
+        self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
+
+        return pi_values
+
+    def learn(self, states, actions):
+        """
+        From Torch site
+         loss = nn.CrossEntropyLoss()
+         input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
+         target = autograd.Variable(torch.LongTensor(3).random_(5))
+         output = loss(input, target)
+         output.backward()
+        """
+        self.optim.zero_grad()
+        pi_preds = self.forward(*states).squeeze()
+        loss = nn.CrossEntropyLoss()
+        output = loss(pi_preds, (1 + one_hot_encode_actions(actions)).long())
+        output.backward()
+        self.optim.step()
+
+
+class SharedNetworkBN(t.nn.Module):
+    def __init__(self, n_actions, hidden_dim, cuda=False):
+        super(SharedNetworkBN, self).__init__()
+        self.n_actions = n_actions
+        self.hidden_dim = hidden_dim
+        hdim = hidden_dim
+
+        self.fc19 = fc(5 * 6 * 2, hdim)
+        self.bn19 = BN(hdim, momentum=.99)
+        self.fc20 = fc(5 * 6 * 2 + hdim, hdim)
+        self.bn20 = BN(hdim, momentum=.99)
+        self.fc21 = fc(5 * 6 * 2 + hdim, hdim)
+        self.bn21 = BN(hdim, momentum=.99)
+        self.fc22 = fc(5 * 6 * 2 + hdim, hdim)
+        self.bn22 = BN(hdim, momentum=.99)
+        self.fc23 = fc(hdim, hdim)
+        self.bn23 = BN(hdim, momentum=.99)
+        self.fc24 = fc(5, hdim)
+        self.bn24 = BN(hdim, momentum=.99)
+        self.fc25 = fc(3 * hdim, hdim)
+        self.bn25 = BN(hdim, momentum=.99)
+        self.fc26 = fc(hdim, hdim)
+        self.bn26 = BN(hdim, momentum=.99)
+
+        if cuda:
+            self.cuda()
+
+    def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        # PROCESS THE ACTIONS THAT WERE TAKEN IN THE CURRENT EPISODE
+        processed_preflop = leakyrelu(self.bn19(self.fc19(flatten(preflop_plays))))
+        processed_flop = leakyrelu(self.bn20(self.fc20(t.cat([flatten(flop_plays), flop_features], -1))))
+        processed_turn = leakyrelu(self.bn21(self.fc21(t.cat([flatten(turn_plays), turn_features], -1))))
+        processed_river = leakyrelu(self.bn22(self.fc22(t.cat([flatten(river_plays), river_features], -1))))
+        plays = leakyrelu(self.bn23(self.fc23(processed_preflop + processed_flop + processed_turn + processed_river)))
+
+        # add pot, dealer, blinds, dealer, stacks
+        pbds = leakyrelu(self.bn24(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1))))
+
+        # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
+        situation_with_opponent = leakyrelu(self.bn25(self.fc25(t.cat([plays, pbds, cards_features], -1))))
+        situation_with_opponent = leakyrelu(self.bn26(self.fc26(situation_with_opponent)))
+
+        return situation_with_opponent
+
+
+class QNetworkBN(t.nn.Module):
+    def __init__(self,
+                 n_actions,
+                 hidden_dim,
+                 featurizer,
+                 game_info,
+                 player_id,
+                 neural_network_history,
+                 is_target_Q=False,
+                 shared_network=None,
+                 pi_network=None,
+                 learning_rate=1e-4,
+                 cuda=False):
+
+        super(QNetworkBN, self).__init__()
+        self.n_actions = n_actions
+        self.featurizer = featurizer
+        self.hidden_dim = hidden_dim
+        hdim = self.hidden_dim
+
+        assert not (shared_network is not None and pi_network is not None), "you should provide either pi_network or shared_network"
+        if pi_network is not None:
+            self.shared_network = pi_network.shared_network
+        else:
+            if shared_network is not None:
+                self.shared_network = shared_network
+            else:
+                self.shared_network = SharedNetworkBN(n_actions, hidden_dim)
+
+        # SHARE WEIGHTS
+        for i in range(19, 27):
+            setattr(self, 'bn' + str(i), getattr(self.shared_network, 'bn' + str(i)))
+            setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
+        # LAST PERSONAL LAYERS
+        self.fc27 = fc(hdim, hdim)
+        self.bn27 = BN(hdim, momentum=.99)
+        self.fc28 = fc(hdim, n_actions)
+        self.bn28 = BN(n_actions, momentum=.99)
+
+        self.criterion = nn.MSELoss()
+        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+
+        # to initialize network on gpu
+        if cuda:
+            self.cuda()
+
+        # for saving neural network history data
+        self.game_info = game_info
+        self.player_id = player_id  # know the owner of the network
+        self.neural_network_history = neural_network_history
+
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+        q_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))
+        q_values = self.bn28(self.fc28(q_values))
+
+        # for saving neural network history data
+        episode_id = self.game_info['#episodes']
+        if not episode_id in self.neural_network_history:
+            self.neural_network_history[episode_id] = {}
+        self.neural_network_history[episode_id][self.player_id] = {}
+        self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
+
+        return q_values
+
+    def learn(self, states, Q_targets, imp_weights):
+        self.optim.zero_grad()
+        # TODO: support batch forward?
+        # not sure if it's supported as it's written now
+        Q_preds = self.forward(*states)[:, 0].squeeze()
+        loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+        loss.backward()
+        # update weights
+        self.optim.step()
+        return td_deltas
+
+    def compute_loss(self, x, y, imp_weights):
+        '''
+        compute weighted mse loss
+        loss for each sample is scaled by imp_weight
+        we need this to account for bias in replay sampling
+        '''
+        td_deltas = x - y
+        mse = t.mean(imp_weights * td_deltas.pow(2))
+        return mse, td_deltas
+
+
+class PiNetworkBN(t.nn.Module):
+    def __init__(self,
+                 n_actions,
+                 hidden_dim,
+                 featurizer,
+                 game_info,
+                 player_id,
+                 neural_network_history,
+                 shared_network=None,
+                 q_network=None,
+                 learning_rate=1e-4,
+                 cuda=False):
+        super(PiNetworkBN, self).__init__()
+        self.n_actions = n_actions
+        self.featurizer = featurizer
+        self.hidden_dim = hidden_dim
+        hdim = self.hidden_dim
+
+        # SHARE WEIGHTS
+        assert not (shared_network is not None and q_network is not None), "you should provide either q_network or shared_network"
+        if q_network is not None:
+            self.shared_network = q_network.shared_network
+        else:
+            if shared_network is not None:
+                self.shared_network = shared_network
+            else:
+                self.shared_network = SharedNetworkBN(n_actions, hidden_dim)
+        for i in range(19, 27):
+            setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
+            setattr(self, 'bn' + str(i), getattr(self.shared_network, 'bn' + str(i)))
+
+        # LAST PERSONAL LAYERS
+        self.fc27 = fc(hdim, hdim)
+        self.bn27 = BN(hdim, momentum=.99)
+        self.fc28 = fc(hdim, n_actions)
+        self.bn28 = BN(n_actions, momentum=.99)
+
+        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+        if cuda:
+            self.cuda()
+
+        # for saving neural network history data
+        self.game_info = game_info
+        self.player_id = player_id  # know the owner of the network
+        self.neural_network_history = neural_network_history
+
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+
+        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+
+        pi_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))
+        pi_values = softmax(self.bn28(self.fc28(pi_values)))
 
         # for saving neural network history data
         episode_id = self.game_info['#episodes']
