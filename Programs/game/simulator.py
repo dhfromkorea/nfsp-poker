@@ -1,5 +1,5 @@
 from odds.evaluation import evaluate_hand
-from models.q_network import QNetwork, PiNetwork
+from models.q_network import QNetworkBN as QNetwork, PiNetworkBN as PiNetwork
 
 from players.strategies import strategy_RL, strategy_random, strategy_mirror, StrategyNFSP
 from players.player import Player, NeuralFictitiousPlayer

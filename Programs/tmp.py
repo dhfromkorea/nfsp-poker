@@ -368,7 +368,7 @@ while True:
     # I will implement this soon
     # we start learning after LEARN_START (see params to ReplayBuffer)
     if global_step > 101:
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         # sample a minibatch of experiences
         exps, imp_weights, ids = buffer_rl.sample(global_step=global_step)
         # TODO: need to flatten states and actions so keras function
