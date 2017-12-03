@@ -29,6 +29,7 @@ class Player:
         self.cards = []
         self.stack = stack
         self.is_dealer = False
+        self.has_played = False
         self.is_all_in = False
         self.strategy = strategy
         self.verbose = verbose
@@ -105,6 +106,7 @@ class NeuralFictitiousPlayer(Player):
         self.stack = stack
         self.is_dealer = False
         self.is_all_in = False
+        self.has_played = False
         self.verbose = verbose
         self.side_pot = 0
         self.contribution_in_this_pot = 0
