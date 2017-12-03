@@ -148,6 +148,7 @@ class StrategyNFSP():
         self.is_greedy = is_greedy
         self.verbose = verbose
         self.cuda = cuda
+        self.is_graph_created = False
 
     def choose_action(self, player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
         if player.is_all_in:
@@ -157,9 +158,11 @@ class StrategyNFSP():
             # use epsilon-greey policy
             if self.verbose:
                 start = timer()
+
             action = strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack,
                                      opponent_side_pot, self._Q, greedy=self.is_greedy, blinds=blinds,
                                      verbose=self.verbose, eps=self.eps, cuda=self.cuda)
+
             if self.verbose:
                 print('forward pass of Q took', timer() - start)
 
@@ -171,7 +174,17 @@ class StrategyNFSP():
             state = [variable(s, cuda=self.cuda) for s in state]
             if self.verbose:
                 start = timer()
+
             action_probs = self._pi.forward(*state).squeeze()
+            ## log graph model
+            ## must have tensorboard open
+            ## tutorial https://github.com/lanpa/tensorboard-pytorch
+            #if not self.is_graph_created:
+            #    from tensorboardX import SummaryWriter
+            #    writer = SummaryWriter()
+            #    writer.add_graph(self._pi, action_probs)
+            #    writer.close()
+
             if self.verbose:
                 print('forward pass of pi took', timer() - start)
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
