@@ -643,14 +643,14 @@ def actions_to_array(actions):
     return all_plays
 
 
-def one_hot_encode_actions(actions):
+def one_hot_encode_actions(actions, cuda=False):
     """
 
     :param actions: a VARIABLE of size batch_size x 5 (il y a 5 types d'actions: check, bet, call, raise, all-in)
     :return: a VARIABLE of size batch_size x 14 (il y a 14 buckets)
     """
     values, indices = t.max(actions, -1)
-    actions_buckets = variable(np.zeros(values.data.cpu().numpy().shape))
+    actions_buckets = variable(np.zeros(values.data.cpu().numpy().shape), cuda=cuda)
     actions_buckets[indices==0] = 0  # check
     actions_buckets[indices==4] = 14  # all in
     actions_buckets[indices==5] = -1  # fold

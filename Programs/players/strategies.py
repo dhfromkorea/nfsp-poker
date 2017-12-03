@@ -138,7 +138,7 @@ def strategy_RL(Q, greedy):
 
 
 class StrategyNFSP():
-    def __init__(self, Q, pi, eta, eps=.05, is_greedy=True, verbose=False, cuda=False):
+    def __init__(self, Q, pi, eta, eps, is_greedy=True, verbose=False, cuda=False):
         self._Q = Q
         self._pi = pi
         self._target_Q = Q

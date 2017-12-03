@@ -30,6 +30,7 @@ class Player:
         self.cards = []
         self.stack = stack
         self.is_dealer = False
+        self.has_played = False
         self.is_all_in = False
         self.strategy = strategy
         self.verbose = verbose
@@ -90,12 +91,12 @@ class NeuralFictitiousPlayer(Player):
                  stack,
                  name,
                  learn_start,
+                 gamma,
+                 learning_rate,
+                 target_Q_update_freq,
                  memory_rl_config={},
                  memory_sl_config={},
                  is_training=True,
-                 learning_rate=1e-3,
-                 gamma=.95,
-                 target_update=1000,
                  verbose=False,
                  cuda=False):
         # we may not need this inheritance
@@ -107,6 +108,8 @@ class NeuralFictitiousPlayer(Player):
         self.stack = stack
         self.is_dealer = False
         self.is_all_in = False
+        self.has_played = False
+        self.verbose = verbose
         self.side_pot = 0
         self.contribution_in_this_pot = 0
 
@@ -119,7 +122,7 @@ class NeuralFictitiousPlayer(Player):
         self.is_training = is_training
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.target_update = target_update
+        self.target_update = target_Q_update_freq
 
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
@@ -129,9 +132,9 @@ class NeuralFictitiousPlayer(Player):
         self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_config, learn_start=learn_start)
 
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
-        '''
+        """
         TODO: check the output action dimension
-        '''
+        """
         action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds)
 
         return action
@@ -157,7 +160,8 @@ class NeuralFictitiousPlayer(Player):
         #assert (record_size_rl + 1) >= record_size_sl, msg
 
         if episode_i % self.target_update == 0:
-            # sync target network periodically
+            if self.verbose:
+                print('sync target network periodically')
             self.strategy.sync_target_network()
 
     def _is_ready_to_learn_RL(self, global_step):

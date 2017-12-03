@@ -29,6 +29,10 @@ def get_arg_parser():
     parser.set_defaults(verbose=False)
     parser.add_argument('--mov_avg_window', default=100, type=int, dest='mov_avg_window',
                         help='moving average for game results')
+
+    parser.add_argument('-ss', '--skip_simulation', action='store_true',
+                        dest='skip_simulation', help='show only the latest results without simulation')
+    parser.set_defaults(skip_simulation=False)
     # game/experiment
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
@@ -46,6 +50,18 @@ def get_arg_parser():
                         help='total steps to Memory RL')
     # define neural network parameters here
 
+    parser.add_argument('-eps', '--epsilon', default=0.1, type=float, dest='eps',
+                        help='eps')
+    parser.add_argument('-g', '--gamma', default=0.95, type=float, dest='gamma',
+                        help='gamma')
+    parser.add_argument('-lr', '--learning_rate', default=1e-3, type=float, dest='learning_rate',
+                        help='learning rate')
+    parser.add_argument('-tf', '--target_Q_update_freq', default=100, type=int,
+                        dest='target_Q_update_freq', help='update target Q every X number of episodes')
+    parser.add_argument('-ep1', '--eta_p1', default=0.5, type=float, dest='eta_p1',
+                        help='eta for player 1')
+    parser.add_argument('-ep2', '--eta_p2', default=0.5, type=float, dest='eta_p2',
+                        help='eta for player 2')
     return parser
 
 if __name__ == '__main__':
@@ -69,34 +85,62 @@ if __name__ == '__main__':
     buffer_size = args.buffer_size
     num_partitions = args.num_partitions
     total_steps = args.total_steps
+    eta_p1 = args.eta_p1
+    eta_p2 = args.eta_p2
+    skip_simulation = args.skip_simulation
+    eps = args.eps
+    gamma = args.gamma
+    learning_rate = args.learning_rate
+    target_Q_update_freq = args.target_Q_update_freq
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
 
-    memory_rl_config = {
-                   #'size': 2 ** 17,
-                   'size': buffer_size,
-                   #'partition_num': 2 ** 11,
-                   'partition_num': num_partitions,
-                   #'total_step': 10 ** 9,
-                   'total_step': total_steps,
-                   #'batch_size': 2 ** 5
-                   'batch_size': batch_size,
-                   }
-    memory_sl_config = {
-                   'size': 2 ** 15,
-                   'batch_size': 2 ** 6
-                   }
-    results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
-                                                      learn_start=learn_start,
-                                                      num_games=num_games,
-                                                      mov_avg_window=mov_avg_window,
-                                                      log_freq=log_freq,
-                                                      memory_rl_config=memory_rl_config,
-                                                      memory_sl_config=memory_sl_config,
-                                                      cuda=cuda,
-                                                      verbose=verbose
-                                                      )
+    if not skip_simulation:
+        # sometimes we want to skip simulation and view only the latest simulation results
+        memory_rl_config = {
+                       #'size': 2 ** 17,
+                       'size': buffer_size,
+                       #'partition_num': 2 ** 11,
+                       'partition_num': num_partitions,
+                       #'total_step': 10 ** 9,
+                       'total_step': total_steps,
+                       #'batch_size': 2 ** 5
+                       'batch_size': batch_size,
+                       }
+        memory_sl_config = {
+                       'size': 2 ** 15,
+                       'batch_size': 2 ** 6
+                       }
+        results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
+                                                          # 2 ** 7
+                                                          learn_start=learn_start,
+                                                          # 10000
+                                                          num_games=num_games,
+                                                          # 100
+                                                          mov_avg_window=mov_avg_window,
+                                                          # 100
+                                                          log_freq=log_freq,
+                                                          # default for eta_p1 =0.5
+                                                          eta_p1=eta_p1,
+                                                          # default for eta_p1 =0.5
+                                                          eta_p2=eta_p2,
+                                                          # default 0.1
+                                                          eps=eps,
+                                                          # default 0.95
+                                                          gamma=gamma,
+                                                          # default 1e-3
+                                                          learning_rate=learning_rate,
+                                                          # default 100 episodes
+                                                          target_Q_update_freq=target_Q_update_freq,
+                                                          memory_rl_config=memory_rl_config,
+                                                          memory_sl_config=memory_sl_config,
+                                                          # default false
+                                                          cuda=cuda,
+                                                          # default false
+                                                          verbose=verbose
+                                                          )
+
 
     # pick the latest created file == results just created from the simulation above
     game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]

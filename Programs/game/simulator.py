@@ -20,14 +20,12 @@ import os.path
 from torch.autograd import Variable
 
 # paths
-
-# SAVED_FEATURIZER_PATH = '/home/dhfromkorea/Dropbox/master_personal/code_dh/scripts/harvard/courses/cs281-project/Programs/data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
 SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
 PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
-
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
+
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
@@ -54,18 +52,24 @@ class Simulator:
     TODO: couple players with networks
     """
 
-    def __init__(self, featurizer_path=SAVED_FEATURIZER_PATH,
-                 # this should be set to a power of two for buffers
+    def __init__(self,
+                 # these should be explicitly passed
+                 log_freq,
+                 learn_start,
+                 eta_p1,
+                 eta_p2,
+                 eps,
+                 gamma,
+                 learning_rate,
+                 target_Q_update_freq,
+                 # use default values
+                 featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
                  play_history_path=PLAY_HISTORY_PATH,
                  neural_network_history_path=NEURAL_NETWORK_HISTORY_PATH,
                  neural_network_loss_path=NEURAL_NETWORK_LOSS_PATH,
                  memory_rl_config={},
                  memory_sl_config={},
-                 log_freq=100,
-                 learn_start=128,
-                 eta_p1 = .1,
-                 eta_p2 = .1,
                  verbose=False,
                  cuda=False,
                  p1_strategy='RL',
@@ -74,6 +78,11 @@ class Simulator:
         self.verbose = verbose
         self.cuda = cuda
         self.log_freq = log_freq
+        self.eps = eps
+        self.gamma = gamma
+        self.learning_rate = learning_rate
+        self.target_Q_update_freq = target_Q_update_freq
+        self.learn_start = learn_start
 
         # NFSP-speicfic network hyperparams
         self.etas = {0: eta_p1, 1: eta_p2}
@@ -119,6 +128,7 @@ class Simulator:
         Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
+                        q_network=Q0,  # to share weights
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=0,
                         neural_network_history=self.neural_network_history,
@@ -127,6 +137,7 @@ class Simulator:
         Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
+                        q_network=Q1,  # to share weights with Q1
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=1,
                         neural_network_history=self.neural_network_history,
@@ -174,19 +185,23 @@ class Simulator:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True), INITIAL_MONEY, p_names[p_id], verbose=verbose))
                 p_id += 1
             elif strategy in NFSP_strategies:
-                strategy = StrategyNFSP(Q_networks[p_id],
-                                        Pi_networks[p_id],
-                                        self.etas[p_id],
+                strategy = StrategyNFSP(Q=Q_networks[p_id],
+                                        pi=Pi_networks[p_id],
+                                        eta=self.etas[p_id],
+                                        eps=self.eps,
                                         cuda=self.cuda)
 
                 nfp = NeuralFictitiousPlayer(pid=p_id,
                                              strategy=strategy,
                                              stack=INITIAL_MONEY,
                                              name=p_names[p_id],
+                                             gamma=self.gamma,
+                                             learning_rate=self.learning_rate,
+                                             target_Q_update_freq=self.target_Q_update_freq,
                                              memory_rl_config=self.memory_rl_config,
                                              memory_sl_config=self.memory_sl_config,
-                                             learn_start=learn_start,
-                                             verbose=verbose,
+                                             learn_start=self.learn_start,
+                                             verbose=self.verbose,
                                              cuda=self.cuda)
                 players.append(nfp)
                 p_id += 1
