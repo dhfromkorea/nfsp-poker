@@ -140,10 +140,10 @@ class NeuralFictitiousPlayer(Player):
         return action
 
     def learn(self, global_step, episode_i, is_training=True):
-        '''
+        """
         NSFP algorithm: learn on batch
         TODO: add a second player with Q and PI
-        '''
+        """
         if self.verbose:
             print('global step', global_step)
             print('Record Size of M_RL', self.memory_rl._buffer.record_size)
@@ -175,8 +175,6 @@ class NeuralFictitiousPlayer(Player):
         return record_size >= self.learn_start and record_size >= batch_size
 
     def _learn_rl(self, global_step):
-        '''
-        '''
         # sample a minibatch of experiences
         # gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
         gamma = variable([self.gamma], cuda=self.cuda)

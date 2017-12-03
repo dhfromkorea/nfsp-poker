@@ -24,19 +24,19 @@ def load_results(path):
 
 if __name__ == '__main__':
     cuda = False
-    verbose = True
-    log_freq = 100
-    num_games = 10000
+    verbose = False
+    log_freq = 1000
+    num_games = 200000
     mov_avg_window = 500
     learn_start = 2**7
     batch_size = 2**5
     buffer_size = 2**17
     num_partitions = 2**11
     total_steps = 10**9
-    eta_p1 = .75
+    eta_p1 = 1.
     eta_p2 = .5
     skip_simulation = False
-    eps = .1
+    eps = .05
     gamma = 1.
     learning_rate = 1e-4
     target_Q_update_freq = 200
@@ -60,7 +60,7 @@ if __name__ == '__main__':
             'size': 2 ** 15,
             'batch_size': 2 ** 6
         }
-        results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
+        results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'mirror',
                                                           # 2 ** 7
                                                           learn_start=learn_start,
                                                           # 10000

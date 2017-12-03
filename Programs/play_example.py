@@ -25,7 +25,7 @@ if __name__ == '__main__':
 
     cuda = False
     p1_strategy = 'NFSP'
-    p2_strategy = 'random'
+    p2_strategy = 'mirror'
     learn_start = 2**7
     eta_p1 = .75
     eta_p2 = .1
@@ -36,9 +36,9 @@ if __name__ == '__main__':
 
     memory_rl_config = {
         # 'size': 2 ** 17,
-        'size': 2**17,
+        'size': 2**10,
         # 'partition_num': 2 ** 11,
-        'partition_num': 2**11,
+        'partition_num': 2**7,
         # 'total_step': 10 ** 9,
         'total_step': 10**9,
         # 'batch_size': 2 ** 5

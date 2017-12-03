@@ -42,7 +42,6 @@ class ReservoirExperienceReplay():
             if not self.is_full:
                 self.buffer.append(experience)
             else:
-                print('buffer is full now removing the oldest')
                 self.buffer.popleft()
                 self.buffer.append(experience)
             self.record_size = self.record_size + 1

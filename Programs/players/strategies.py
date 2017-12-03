@@ -46,38 +46,35 @@ def strategy_mirror(player, board, pot, actions, b_round, opponent_stack, oppone
         opponent_id = 1 - player.id
         last_opponent_action = actions[b_round][opponent_id][-1]
 
-        if last_opponent_action == "check":
+        if last_opponent_action.type == "check":
             check_bucket = 0
             mirror_action = bucket_to_action(check_bucket, actions, b_round, player, opponent_side_pot)
             return mirror_action
 
-        elif last_opponent_action == "bet":
+        elif last_opponent_action.type == "call":
+            check_bucket = 0
+            mirror_action = bucket_to_action(check_bucket, actions, b_round, player, opponent_side_pot)
+            return mirror_action
+
+        elif last_opponent_action.type == "bet":
             call_bucket = get_call_bucket(last_opponent_action.value)
             mirror_action = bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot)
             return mirror_action
 
-        elif last_opponent_action == "call":
-            # Opponent can call small blind in pre-flop.
-            if b_round == 0:
-                check_bucket = 0
-                mirror_action = bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot)
-                return mirror_action
-            else:
-                raise ValueError('This case shouldn\'t happen because a call should lead to the next betting round')
+        elif last_opponent_action.type == "all in":
+            return Action('all in', player.stack)
 
-        elif last_opponent_action == "all in":
-            call_bucket = get_call_bucket(opponent_side_pot - player.side_pot)
-            max_bet_bucket = get_max_bet_bucket(player.stack)
-            if max_bet_bucket < call_bucket:
-                return [-1, 14]
-            else:
-                return [-1, call_bucket]
+        elif last_opponent_action.type == "raise":
+            possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)[1:]
+            action_bucket = possible_actions[0]
+            action = bucket_to_action(action_bucket, actions, b_round, player, opponent_side_pot)
+            return action
 
     # You play first. Always check for non pre-flop.
     except IndexError:
         max_bet_bucket = get_max_bet_bucket(player.stack)
         if b_round == 0:  # preflop, you are SB and it is your first action. You can either fold, call, or raise at least 2 (i.e bet 3, i.e bucket 3)
-            if max_bet_bucket == 1:
+            if max_bet_bucket <= 2:
                 small_blind_bucket = 14
             else:
                 small_blind_bucket = 1
@@ -85,7 +82,7 @@ def strategy_mirror(player, board, pot, actions, b_round, opponent_stack, oppone
             return mirror_action
         else:
             check_bucket = 0
-            mirror_action = bucket_to_action(call_bucket, actions, b_round, player, opponent_side_pot)
+            mirror_action = bucket_to_action(check_bucket, actions, b_round, player, opponent_side_pot)
             return mirror_action
 
 
@@ -188,10 +185,10 @@ class StrategyNFSP():
         return action, self.is_Q_used
 
     def sync_target_network(self):
-        '''
+        """
         create a fixed target network
         copy weights and memorys
-        '''
+        """
         try:
             self._target_Q.load_state_dict(self._Q.state_dict())
         except:
