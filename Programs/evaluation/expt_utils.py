@@ -27,6 +27,8 @@ big_blind = BLINDS[1]
 
 def conduct_games(p1_strategy,
                   p2_strategy,
+                  eta_p1=.1,
+                  eta_p2=.1,
                   memory_rl_config={},
                   memory_sl_config={},
                   learn_start=128,
@@ -43,6 +45,8 @@ def conduct_games(p1_strategy,
                                    p2_strategy=p2_strategy,
                                    learn_start=learn_start,
                                    cuda=cuda,
+                                   eta_p1=eta_p1,
+                                   eta_p2=eta_p2,
                                    memory_rl_config=memory_rl_config,
                                    memory_sl_config=memory_sl_config,
                                    verbose=verbose,
@@ -51,7 +55,7 @@ def conduct_games(p1_strategy,
     # results = amount of money won/lost for each player
     # results = {player_id: +-reward}
     final_res = {}
-    #print(results)
+    # print(results)
     for player_id in ret_player_ids:
         player_res = []
         for game in results.keys():

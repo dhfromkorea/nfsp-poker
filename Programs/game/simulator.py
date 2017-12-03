@@ -109,6 +109,7 @@ class Simulator:
         Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
+                        q_network=Q0,  # to share weights
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=0,
                         neural_network_history=self.neural_network_history,
@@ -116,6 +117,7 @@ class Simulator:
         Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
+                        q_network=Q1,  # to share weights with Q1
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=1,
                         neural_network_history=self.neural_network_history,

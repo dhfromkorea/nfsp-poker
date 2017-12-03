@@ -5,7 +5,6 @@ import torch.optim as optim
 import numpy as np
 from game.game_utils import one_hot_encode_actions
 
-
 selu = SELU()
 softmax = Softmax()
 sigmoid = Sigmoid()
@@ -28,6 +27,7 @@ class CardFeaturizer1(t.nn.Module):
     The one i got results with
     SELU + AlphaDropout + smart initialization
     """
+
     def __init__(self, hdim, n_filters, cuda=False):
         super(CardFeaturizer1, self).__init__()
         self.hdim = hdim
@@ -71,7 +71,6 @@ class CardFeaturizer1(t.nn.Module):
             # configure the model params on gpu
             self.cuda()
 
-
     def forward(self, hand, board):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
@@ -82,7 +81,6 @@ class CardFeaturizer1(t.nn.Module):
         color_board = t.sum(t.sum(board, 2), 1)
         kinds_hand = t.sum(hand, -1)
         kinds_board = t.sum(t.sum(board, -1), 1)
-        #import pdb; pdb.set_trace()
         colors = t.cat([color_hand.resize(len(color_hand), 1, 4), color_board.resize(len(color_board), 1, 4)], 1)
         kinds = t.cat([kinds_hand.resize(len(kinds_hand), 1, 13), kinds_board.resize(len(kinds_board), 1, 13)], 1)
 
@@ -128,17 +126,16 @@ class CardFeaturizer1(t.nn.Module):
 def clip_gradients(nn, bound=10):
     for p in nn.parameters():
         if p.grad is not None:
-            p.grad = p.grad*((bound <= p.grad).float())*((bound >= p.grad).float()) + bound*((p.grad > bound).float()) - bound*((p.grad < -bound).float())
+            p.grad = p.grad * ((bound <= p.grad).float()) * ((bound >= p.grad).float()) + bound * ((p.grad > bound).float()) - bound * ((p.grad < -bound).float())
 
 
 class SharedNetwork(t.nn.Module):
-    def __init__(self, n_actions, hidden_dim):
+    def __init__(self, n_actions, hidden_dim, cuda=False):
         super(SharedNetwork, self).__init__()
         self.n_actions = n_actions
         self.hidden_dim = hidden_dim
         hdim = hidden_dim
 
-        # @PROBLEM
         self.fc19 = fc(5 * 6 * 2, hdim)
         self.fc20 = fc(5 * 6 * 2 + hdim, hdim)
         self.fc21 = fc(5 * 6 * 2 + hdim, hdim)
@@ -148,20 +145,31 @@ class SharedNetwork(t.nn.Module):
         self.fc25 = fc(3 * hdim, hdim)
         self.fc26 = fc(hdim, hdim)
 
+        for i in range(19, 26):
+            fcc = getattr(self, 'fc' + str(i))
+            shape = fcc.weight.data.cpu().numpy().shape
+            fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
+
+        if cuda:
+            self.cuda()
+
     def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        dropout = AlphaDropout(.1)
+        dropout.training = self.training
+
         # PROCESS THE ACTIONS THAT WERE TAKEN IN THE CURRENT EPISODE
-        processed_preflop = selu(self.fc19(flatten(preflop_plays)))
-        processed_flop = selu(self.fc20(t.cat([flatten(flop_plays), flop_features], -1)))
-        processed_turn = selu(self.fc21(t.cat([flatten(turn_plays), turn_features], -1)))
-        processed_river = selu(self.fc22(t.cat([flatten(river_plays), river_features], -1)))
-        plays = selu(self.fc23(processed_preflop + processed_flop + processed_turn + processed_river))
+        processed_preflop = selu(dropout(self.fc19(flatten(preflop_plays))))
+        processed_flop = selu(dropout(self.fc20(t.cat([flatten(flop_plays), flop_features], -1))))
+        processed_turn = selu(dropout(self.fc21(t.cat([flatten(turn_plays), turn_features], -1))))
+        processed_river = selu(dropout(self.fc22(t.cat([flatten(river_plays), river_features], -1))))
+        plays = selu(dropout(self.fc23(processed_preflop + processed_flop + processed_turn + processed_river)))
 
         # add pot, dealer, blinds, dealer, stacks
-        pbds = selu(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1)))
+        pbds = selu(dropout(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1))))
 
         # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
-        situation_with_opponent = selu(self.fc25(t.cat([plays, pbds, cards_features], -1)))
-        situation_with_opponent = selu(self.fc26(situation_with_opponent))
+        situation_with_opponent = selu(dropout(self.fc25(t.cat([plays, pbds, cards_features], -1))))
+        situation_with_opponent = selu(dropout(self.fc26(situation_with_opponent)))
 
         return situation_with_opponent
 
@@ -177,7 +185,7 @@ class QNetwork(t.nn.Module):
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
-                 learning_rate=1e-3,
+                 learning_rate=1e-4,
                  cuda=False):
 
         super(QNetwork, self).__init__()
@@ -193,13 +201,20 @@ class QNetwork(t.nn.Module):
             if shared_network is not None:
                 self.shared_network = shared_network
             else:
-                # @PROBLEM
                 self.shared_network = SharedNetwork(n_actions, hidden_dim)
 
+        # SHARE WEIGHTS
         for i in range(19, 27):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
+        # LAST PERSONAL LAYERS
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
+
+        # INIT WEIGHTS SELU
+        for i in range(27, 29):
+            fcc = getattr(self, 'fc' + str(i))
+            shape = fcc.weight.data.cpu().numpy().shape
+            fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
 
         self.criterion = nn.MSELoss()
         self.optim = optim.Adam(self.parameters(), lr=learning_rate)
@@ -210,15 +225,18 @@ class QNetwork(t.nn.Module):
 
         # for saving neural network history data
         self.game_info = game_info
-        self.player_id = player_id # know the owner of the network
+        self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+        dropout = AlphaDropout(.1)
+        dropout.training = self.training
+
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
-        q_values = selu(self.fc27(situation_with_opponent))
-        q_values = self.fc28(q_values)
+        q_values = selu(dropout(self.fc27(situation_with_opponent)))
+        q_values = self.fc28(dropout(q_values))
 
         # for saving neural network history data
         episode_id = self.game_info['#episodes']
@@ -261,7 +279,7 @@ class PiNetwork(t.nn.Module):
                  neural_network_history,
                  shared_network=None,
                  q_network=None,
-                 learning_rate=1e-3,
+                 learning_rate=1e-4,
                  cuda=False):
         super(PiNetwork, self).__init__()
         self.n_actions = n_actions
@@ -269,6 +287,7 @@ class PiNetwork(t.nn.Module):
         self.hidden_dim = hidden_dim
         hdim = self.hidden_dim
 
+        # SHARE WEIGHTS
         assert not (shared_network is not None and q_network is not None), "you should provide either q_network or shared_network"
         if q_network is not None:
             self.shared_network = q_network.shared_network
@@ -279,28 +298,36 @@ class PiNetwork(t.nn.Module):
                 self.shared_network = SharedNetwork(n_actions, hidden_dim)
         for i in range(19, 27):
             setattr(self, 'fc' + str(i), getattr(self.shared_network, 'fc' + str(i)))
+
+        # LAST PERSONAL LAYERS
         self.fc27 = fc(hdim, hdim)
         self.fc28 = fc(hdim, n_actions)
-        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
 
+        # INIT WEIGHTS SELU
+        for i in range(27, 29):
+            fcc = getattr(self, 'fc' + str(i))
+            shape = fcc.weight.data.cpu().numpy().shape
+            fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
+
+        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
         if cuda:
             self.cuda()
 
         # for saving neural network history data
         self.game_info = game_info
-        self.player_id = player_id # know the owner of the network
+        self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
 
-
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
-        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        dropout = AlphaDropout(.1)
+        dropout.training = self.training
 
-        #HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
-        pi_values = selu(self.fc27(situation_with_opponent))
-        pi_values = softmax(self.fc28(pi_values))
+        pi_values = selu(dropout(self.fc27(situation_with_opponent)))
+        pi_values = softmax(dropout(self.fc28(pi_values)))
 
         # for saving neural network history data
         episode_id = self.game_info['#episodes']
@@ -312,16 +339,17 @@ class PiNetwork(t.nn.Module):
         return pi_values
 
     def learn(self, states, actions):
-        '''    From Torch site
+        """
+        From Torch site
          loss = nn.CrossEntropyLoss()
          input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
          target = autograd.Variable(torch.LongTensor(3).random_(5))
          output = loss(input, target)
          output.backward()
-        '''
+        """
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         loss = nn.CrossEntropyLoss()
-        output = loss(pi_preds, (1+one_hot_encode_actions(actions)).long())
+        output = loss(pi_preds, (1 + one_hot_encode_actions(actions)).long())
         output.backward()
         self.optim.step()

@@ -128,10 +128,9 @@ class NeuralFictitiousPlayer(Player):
         self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_config, learn_start=learn_start)
 
     def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
-        '''
+        """
         TODO: check the output action dimension
-        '''
-
+        """
         action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds)
         return action
 

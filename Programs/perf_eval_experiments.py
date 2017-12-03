@@ -48,6 +48,7 @@ if __name__ == '__main__':
     results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
                                                       learn_start=2**7,
                                                       num_games=10000,
+                                                      eta_p1=.5,
                                                       mov_avg_window=100,
                                                       log_freq=100,
                                                       memory_rl_config=memory_rl_config,
