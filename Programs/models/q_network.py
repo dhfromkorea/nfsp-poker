@@ -183,6 +183,7 @@ class QNetwork(t.nn.Module):
                  game_info,
                  player_id,
                  neural_network_history,
+                 neural_network_loss,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
@@ -190,6 +191,8 @@ class QNetwork(t.nn.Module):
                  cuda=False):
 
         super(QNetwork, self).__init__()
+
+        self.is_cuda=cuda
         self.n_actions = n_actions
         self.featurizer = featurizer
         self.hidden_dim = hidden_dim
@@ -228,6 +231,7 @@ class QNetwork(t.nn.Module):
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
+        self.neural_network_loss = neural_network_loss
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         dropout = AlphaDropout(.1)
@@ -254,6 +258,16 @@ class QNetwork(t.nn.Module):
         # not sure if it's supported as it's written now
         Q_preds = self.forward(*states)[:, 0].squeeze()
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+
+        # log loss history data
+        if not 'q' in self.neural_network_loss[self.player_id]:
+            self.neural_network_loss[self.player_id]['q'] = []
+
+        raw_loss = loss.data.cpu().numpy()[0]
+        self.neural_network_loss[self.player_id]['q'].append(raw_loss)
+
+
+
         loss.backward()
         # update weights
         self.optim.step()
@@ -278,11 +292,14 @@ class PiNetwork(t.nn.Module):
                  game_info,
                  player_id,
                  neural_network_history,
+                 neural_network_loss,
                  shared_network=None,
                  q_network=None,
                  learning_rate=1e-4,
                  cuda=False):
         super(PiNetwork, self).__init__()
+        # cuda is a reserved property for t.nn.Module
+        self.is_cuda = cuda
         self.n_actions = n_actions
         self.featurizer = featurizer
         self.hidden_dim = hidden_dim
@@ -318,6 +335,7 @@ class PiNetwork(t.nn.Module):
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
+        self.neural_network_loss = neural_network_loss
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         dropout = AlphaDropout(.1)
@@ -350,10 +368,19 @@ class PiNetwork(t.nn.Module):
         """
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
-        loss = nn.CrossEntropyLoss()
-        output = loss(pi_preds, (1 + one_hot_encode_actions(actions)).long())
-        output.backward()
+        criterion = nn.CrossEntropyLoss()
+        one_hot_actions = one_hot_encode_actions(actions, cuda=self.is_cuda)
+        loss = criterion(pi_preds, (1+one_hot_actions).long())
+
+        # log loss history data
+        if not 'pi' in self.neural_network_loss[self.player_id]:
+            self.neural_network_loss[self.player_id]['pi'] = []
+        raw_loss = loss.data.cpu().numpy()[0]
+        self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
+
+        loss.backward()
         self.optim.step()
+        return loss
 
 
 class SharedNetworkBN(t.nn.Module):

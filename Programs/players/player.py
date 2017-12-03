@@ -1,6 +1,7 @@
 from torch.autograd import Variable
 import torch as t
 import numpy as np
+from timeit import default_timer as timer
 
 from experience_replay.experience_replay import ReplayBufferManager
 from game.game_utils import Action
@@ -90,17 +91,18 @@ class NeuralFictitiousPlayer(Player):
                  stack,
                  name,
                  learn_start,
+                 gamma,
+                 learning_rate,
+                 target_Q_update_freq,
                  memory_rl_config={},
                  memory_sl_config={},
                  is_training=True,
-                 learning_rate=1e-3,
-                 gamma=.95,
-                 target_update=1000,
                  verbose=False,
                  cuda=False):
         # we may not need this inheritance
         super().__init__(pid, strategy, stack)
         self.cuda = cuda
+        self.verbose = verbose
 
         self.cards = []
         self.stack = stack
@@ -120,7 +122,7 @@ class NeuralFictitiousPlayer(Player):
         self.is_training = is_training
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.target_update = target_update
+        self.target_update = target_Q_update_freq
 
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
@@ -134,6 +136,7 @@ class NeuralFictitiousPlayer(Player):
         TODO: check the output action dimension
         """
         action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds)
+
         return action
 
     def learn(self, global_step, episode_i, is_training=True):
@@ -141,10 +144,10 @@ class NeuralFictitiousPlayer(Player):
         NSFP algorithm: learn on batch
         TODO: add a second player with Q and PI
         '''
-        # TODO: set policy with
-        print('global step', global_step)
-        print('Record Size of M_RL', self.memory_rl._buffer.record_size)
-        print('Record Size of M_SL', self.memory_sl._buffer.record_size)
+        if self.verbose:
+            print('global step', global_step)
+            print('Record Size of M_RL', self.memory_rl._buffer.record_size)
+            print('Record Size of M_SL', self.memory_sl._buffer.record_size)
         if self._is_ready_to_learn_RL(global_step):
             self._learn_rl(global_step)
 
@@ -157,7 +160,8 @@ class NeuralFictitiousPlayer(Player):
         #assert (record_size_rl + 1) >= record_size_sl, msg
 
         if episode_i % self.target_update == 0:
-            # sync target network periodically
+            if self.verbose:
+                print('sync target network periodically')
             self.strategy.sync_target_network()
 
     def _is_ready_to_learn_RL(self, global_step):
@@ -185,7 +189,12 @@ class NeuralFictitiousPlayer(Player):
 
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
+
+            if self.verbose:
+                start = timer()
             td_deltas = self.strategy._Q.learn(state_vars, Q_targets, imp_weights)
+            if self.verbose:
+                print('backward pass of Q network took ', timer() - start)
             self.memory_rl.update(ids, td_deltas.data.cpu().numpy())
 
     def _learn_sl(self, global_step):
@@ -197,7 +206,11 @@ class NeuralFictitiousPlayer(Player):
             state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
             # 4 x 11 each column is torch variable
             action_vars = variable(exps[1], cuda=self.cuda)
+            if self.verbose:
+                start = timer()
             self.strategy._pi.learn(state_vars, action_vars)
+            if self.verbose:
+                print('backward pass of pi network took ', timer() - start)
 
     def remember(self, exp):
         self.memory_rl.store_experience(exp)

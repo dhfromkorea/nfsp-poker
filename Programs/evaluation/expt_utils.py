@@ -27,16 +27,21 @@ big_blind = BLINDS[1]
 
 def conduct_games(p1_strategy,
                   p2_strategy,
-                  eta_p1=.1,
-                  eta_p2=.1,
+                  eta_p1,
+                  eta_p2,
+                  learn_start,
+                  num_games,
+                  mov_avg_window,
+                  log_freq,
+                  gamma,
+                  eps,
+                  learning_rate,
+                  target_Q_update_freq,
                   memory_rl_config={},
                   memory_sl_config={},
-                  learn_start=128,
-                  num_games=1e4,
+                  # not using this?
                   num_simulations=1,
                   ret_player_ids=[0, 1],
-                  mov_avg_window=5,
-                  log_freq=100,
                   cuda=False,
                   verbose=False):
     # TODO:
@@ -47,6 +52,10 @@ def conduct_games(p1_strategy,
                                    cuda=cuda,
                                    eta_p1=eta_p1,
                                    eta_p2=eta_p2,
+                                   gamma=gamma,
+                                   eps=eps,
+                                   learning_rate=learning_rate,
+                                   target_Q_update_freq=target_Q_update_freq,
                                    memory_rl_config=memory_rl_config,
                                    memory_sl_config=memory_sl_config,
                                    verbose=verbose,
@@ -82,6 +91,6 @@ def plot_results(results_dict, show=False, save=False, p_id=0, plot_id=randint(1
     if show:
         plt.show()
     else:
-        plt.savefig("WinRates_", plot_id)
+        plt.savefig("WinRates_{}".format(plot_id), ppi=300, bbox_inches='tight')
 
     print("Process done and plots saved")

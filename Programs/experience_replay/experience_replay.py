@@ -29,7 +29,6 @@ class ReplayBufferManager:
             having partition_num samples"
 
         if self.target == 'rl':
-            print('target: RL ', config)
             self.config = {'size': config.get('size', 2 ** 17),  # 2**10
                            # this is a game-level parameter
                            'learn_start': learn_start,
@@ -42,13 +41,16 @@ class ReplayBufferManager:
             dist_index = self.config['learn_start'] / self.config['size'] * self.config['partition_num']
             assert self.config['learn_start'] * self.config['partition_num'] >= self.config['size'], "Memory RL intialization is wrong"
             assert math.floor(dist_index) == math.ceil(dist_index), "Memory_RL initialization should be consistent with the assertion here"
+            if verbose:
+                print('target: RL ', config)
             self._buffer = RankExperienceReplay(self.config)
         elif self.target == 'sl':
-            print('target: SL ', config)
             self.config = {'size': config.get('size', 2 ** 15),
                            'learn_start': learn_start,
                            'batch_size': config.get('batch_size', 2**6)
                            }
+            if verbose:
+                print('target: SL ', config)
             self._buffer = ReservoirExperienceReplay(self.config)
         else:
             raise Exception('Experience Replay target not supported')
