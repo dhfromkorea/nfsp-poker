@@ -3,6 +3,7 @@ from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid, Alpha
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import time
 from game.game_utils import one_hot_encode_actions
 
 selu = SELU()
@@ -183,6 +184,7 @@ class QNetwork(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
@@ -231,6 +233,7 @@ class QNetwork(t.nn.Module):
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
         self.neural_network_loss = neural_network_loss
+        self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         dropout = AlphaDropout(.1)
@@ -261,8 +264,10 @@ class QNetwork(t.nn.Module):
         # log loss history data
         if not 'q' in self.neural_network_loss[self.player_id]:
             self.neural_network_loss[self.player_id]['q'] = []
-        
         raw_loss = loss.data.cpu().numpy()[0]
+        # todo: refactor the hard coded name
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('q_mse_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
         self.neural_network_loss[self.player_id]['q'].append(raw_loss)
 
 
@@ -292,6 +297,7 @@ class PiNetwork(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 tensorboard=None,
                  shared_network=None,
                  q_network=None,
                  learning_rate=1e-4,
@@ -335,6 +341,7 @@ class PiNetwork(t.nn.Module):
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
         self.neural_network_loss = neural_network_loss
+        self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         dropout = AlphaDropout(.1)
@@ -375,8 +382,11 @@ class PiNetwork(t.nn.Module):
         if not 'pi' in self.neural_network_loss[self.player_id]:
             self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('pi_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
         self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
 
         loss.backward()
         self.optim.step()
+
         return loss

@@ -10,6 +10,9 @@ import evaluation.expt_utils as eu
 import argparse
 import game
 
+from pycrayon import CrayonClient
+import time
+
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
@@ -64,6 +67,23 @@ def get_arg_parser():
                         help='eta for player 2')
     return parser
 
+def setup_tensorboard(name, host_name='http://localhost'):
+    tb = CrayonClient(hostname=host_name)
+    try:
+        tb_experiment = tb.create_experiment(name)
+    except ValueError:
+        # flush the data anew
+        tb.remove_experiment(name)
+        tb_experiment = tb.create_experiment(name)
+    return tb_experiment, tb
+
+def remove_all_experiments(host_name='http://localhost'):
+    '''
+    DANGER: don't use this, unless you're sure
+    '''
+    tb = CrayonClient(hostname=host_name)
+    tb.remove_all_experiments()
+
 if __name__ == '__main__':
     '''
     If you want to play around with the hyperparameters, you can do:
@@ -92,6 +112,11 @@ if __name__ == '__main__':
     gamma = args.gamma
     learning_rate = args.learning_rate
     target_Q_update_freq = args.target_Q_update_freq
+    #experiment_name = args.experiment_name
+    # TODO: make experiment_name in sync with saved_model_name
+    experiment_name = str(time.ctime())
+
+    tb_experiment, _ = setup_tensorboard(experiment_name)
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
@@ -137,8 +162,8 @@ if __name__ == '__main__':
                                                           memory_sl_config=memory_sl_config,
                                                           # default false
                                                           cuda=cuda,
-                                                          # default false
-                                                          verbose=verbose
+                                                          verbose=verbose,
+                                                          tensorboard=tb_experiment
                                                           )
 
 

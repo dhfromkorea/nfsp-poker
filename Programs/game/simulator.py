@@ -25,7 +25,7 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.form
 PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
-
+EXPERIMENT_PATH = 'data/tensorboard/'
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
@@ -72,6 +72,7 @@ class Simulator:
                  memory_sl_config={},
                  verbose=False,
                  cuda=False,
+                 tensorboard=None,
                  p1_strategy='RL',
                  p2_strategy='RL'):
         # define msc.
@@ -102,6 +103,8 @@ class Simulator:
         self.neural_network_loss_path = neural_network_loss_path
         self.neural_network_loss = {0: {'q': [], 'pi': []},
                                     1: {'q':[]}, 'pi': []}
+        # 4. tensorboard
+        self.tensorboard = tensorboard
 
         # define game-level game states here
         self.new_game = True
@@ -116,6 +119,7 @@ class Simulator:
                       player_id=0,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
+                      tensorboard=tensorboard,
                       cuda=cuda)
         Q1 = QNetwork(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
@@ -124,6 +128,7 @@ class Simulator:
                       player_id=1,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
+                      tensorboard=tensorboard,
                       cuda=cuda)
         Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
@@ -133,6 +138,7 @@ class Simulator:
                         player_id=0,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
+                        tensorboard=tensorboard,
                         cuda=cuda)
         Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
@@ -142,6 +148,7 @@ class Simulator:
                         player_id=1,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
+                        tensorboard=tensorboard,
                         cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
@@ -297,6 +304,8 @@ class Simulator:
                     self.players[1].remember(self.experiences[1])
         try:
             self.update_play_history_with_final_rewards()
+            if self.tensorboard is not None:
+                self._send_correct_final_reward_to_tensorboard()
         except KeyError:
             raise KeyError
 
@@ -304,21 +313,6 @@ class Simulator:
             if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
 
-        '''
-          {
-          'episode_id' :
-               'player_1': {
-                    Q : Q(s,a),
-                    Q_target: taget_Q(s,a),
-                    pi: pi(s) -> action_probs
-                },
-               'player_2': {
-                    Q : Q(s,a),
-                    Q_target: taget_Q(s,a),
-                    pi: pi(s) -> action_probs
-                },
-          }
-        '''
 
         self._reset_variables()
         # TODO: remove this! temp variable
@@ -448,7 +442,30 @@ class Simulator:
             self._save_results(self.play_history, self.play_history_path)
             self._save_results(self.neural_network_history, self.neural_network_history_path)
             self._save_results(self.neural_network_loss, self.neural_network_loss_path)
+            self.tensorboard.to_zip('{}_'.format(EXPERIMENT_PATH, time()))
             print(self.games['n'], " games over")
+
+    def _send_correct_final_reward_to_tensorboard(self):
+        '''
+        send only the corrected final rewards after every episode
+        '''
+        if 0 in self.play_history[self.global_step]:
+            gs_p1 = self.global_step
+            gs_p2 = self.global_step - 1
+        else:
+            gs_p1 = self.global_step - 1
+            gs_p2 = self.global_step
+
+        t = time()
+
+        if self.players[0].has_played:
+            # p1's final reward was updated, we overwrite the history
+            final_reward_p1 = self.play_history[gs_p1][0]['r']
+            self.tensorboard.add_scalar_value('reward_1', final_reward_p1, t)
+        if self.players[1].has_played:
+            # p2's final reward was updated, we overwrite the history
+            final_reward_p2 = self.play_history[gs_p2][1]['r']
+            self.tensorboard.add_scalar_value('reward_2', final_reward_p2, t)
 
     def update_play_history_with_final_rewards(self):
         try:

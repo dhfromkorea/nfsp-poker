@@ -21,10 +21,6 @@ import numpy as np
 def moving_avg(x, pid, window):
     return [np.mean(x[k:k + window, pid]) for k in range(len(x) - window)]
 
-
-big_blind = BLINDS[1]
-
-
 def conduct_games(p1_strategy,
                   p2_strategy,
                   eta_p1,
@@ -43,13 +39,13 @@ def conduct_games(p1_strategy,
                   num_simulations=1,
                   ret_player_ids=[0, 1],
                   cuda=False,
-                  verbose=False):
-    # TODO:
-    # 1. save_frequency -> output a pickle file which holds game results
+                  verbose=False,
+                  tensorboard=None,
+                 ):
+
     game_sim = simulator.Simulator(p1_strategy=p1_strategy,
                                    p2_strategy=p2_strategy,
                                    learn_start=learn_start,
-                                   cuda=cuda,
                                    eta_p1=eta_p1,
                                    eta_p2=eta_p2,
                                    gamma=gamma,
@@ -59,12 +55,12 @@ def conduct_games(p1_strategy,
                                    memory_rl_config=memory_rl_config,
                                    memory_sl_config=memory_sl_config,
                                    verbose=verbose,
-                                   log_freq=log_freq)
+                                   cuda=cuda,
+                                   log_freq=log_freq,
+                                   tensorboard=tensorboard)
     results = game_sim.start(num_games, return_results=True)
-    # results = amount of money won/lost for each player
-    # results = {player_id: +-reward}
     final_res = {}
-    # print(results)
+    big_blind = BLINDS[1]
     for player_id in ret_player_ids:
         player_res = []
         for game in results.keys():
