@@ -3,7 +3,7 @@ from torch.nn import Conv1d as conv, SELU, Linear as fc, Softmax, Sigmoid, Alpha
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from game.game_utils import one_hot_encode_actions
+from game.game_utils import bucket_encode_actions
 
 selu = SELU()
 softmax = Softmax()
@@ -252,11 +252,14 @@ class QNetwork(t.nn.Module):
 
         return q_values
 
-    def learn(self, states, Q_targets, imp_weights):
+    def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
-        Q_preds = self.forward(*states)[:, 0].squeeze()
+        all_Q_preds = self.forward(*states)
+        actions_ = (bucket_encode_actions(actions) + 1).long()
+        Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
+
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
@@ -367,7 +370,7 @@ class PiNetwork(t.nn.Module):
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         criterion = nn.CrossEntropyLoss()
-        one_hot_actions = one_hot_encode_actions(actions, cuda=self.is_cuda)
+        one_hot_actions = bucket_encode_actions(actions, cuda=self.is_cuda)
         loss = criterion(pi_preds, (1+one_hot_actions).long())
 
         # log loss history data
@@ -497,11 +500,13 @@ class QNetworkBN(t.nn.Module):
 
         return q_values
 
-    def learn(self, states, Q_targets, imp_weights):
+    def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
-        Q_preds = self.forward(*states)[:, 0].squeeze()
+        all_Q_preds = self.forward(*states)
+        actions_ = (bucket_encode_actions(actions) + 1).long()
+        Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
@@ -605,7 +610,7 @@ class PiNetworkBN(t.nn.Module):
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         criterion = nn.CrossEntropyLoss()
-        one_hot_actions = one_hot_encode_actions(actions, cuda=self.is_cuda)
+        one_hot_actions = bucket_encode_actions(actions, cuda=self.is_cuda)
         loss = criterion(pi_preds, (1 + one_hot_actions).long())
 
         # log loss history data

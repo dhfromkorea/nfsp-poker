@@ -23,9 +23,44 @@ if __name__ == '__main__':
     parser.set_defaults(verbose=False)
     args = parser.parse_args()
 
-    simulator = Simulator(verbose=args.verbose,
-                          featurizer_path=SAVED_FEATURIZER_PATH,
-                          cuda=args.cuda,
-                          p1_strategy='NFSP',
-                          p2_strategy='random')
+    cuda = False
+    p1_strategy = 'NFSP'
+    p2_strategy = 'random'
+    learn_start = 2**7
+    eta_p1 = .75
+    eta_p2 = .1
+    eps = .1
+    gamma = .99
+    learning_rate = 1e-4
+    target_Q_update_freq = 200
+
+    memory_rl_config = {
+        # 'size': 2 ** 17,
+        'size': 2**17,
+        # 'partition_num': 2 ** 11,
+        'partition_num': 2**11,
+        # 'total_step': 10 ** 9,
+        'total_step': 10**9,
+        # 'batch_size': 2 ** 5
+        'batch_size': 2**5,
+    }
+    memory_sl_config = {
+        'size': 2 ** 15,
+        'batch_size': 2 ** 6
+    }
+
+    simulator = Simulator(p1_strategy=p1_strategy,
+                          p2_strategy=p2_strategy,
+                          learn_start=learn_start,
+                          cuda=cuda,
+                          eta_p1=eta_p1,
+                          eta_p2=eta_p2,
+                          gamma=gamma,
+                          eps=eps,
+                          learning_rate=learning_rate,
+                          target_Q_update_freq=target_Q_update_freq,
+                          memory_rl_config=memory_rl_config,
+                          memory_sl_config=memory_sl_config,
+                          verbose=True,
+                          log_freq=100)
     simulator.start()

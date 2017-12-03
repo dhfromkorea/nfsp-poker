@@ -157,7 +157,7 @@ class NeuralFictitiousPlayer(Player):
         record_size_rl = self.memory_rl._buffer.record_size
         record_size_sl = self.memory_sl._buffer.record_size
         msg = 'pid: {} record size for RL:{} should be larger than SL: {}'.format(self.id, record_size_rl, record_size_sl)
-        #assert (record_size_rl + 1) >= record_size_sl, msg
+        # assert (record_size_rl + 1) >= record_size_sl, msg
 
         if episode_i % self.target_update == 0:
             if self.verbose:
@@ -178,7 +178,7 @@ class NeuralFictitiousPlayer(Player):
         '''
         '''
         # sample a minibatch of experiences
-        #gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
+        # gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
         gamma = variable([self.gamma], cuda=self.cuda)
         exps, imp_weights, ids = self.memory_rl.sample(global_step)
         state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
@@ -192,15 +192,15 @@ class NeuralFictitiousPlayer(Player):
 
             if self.verbose:
                 start = timer()
-            td_deltas = self.strategy._Q.learn(state_vars, Q_targets, imp_weights)
+            td_deltas = self.strategy._Q.learn(state_vars, action_vars, Q_targets, imp_weights)
             if self.verbose:
                 print('backward pass of Q network took ', timer() - start)
             self.memory_rl.update(ids, td_deltas.data.cpu().numpy())
 
     def _learn_sl(self, global_step):
-        '''
-       reservior sampling from M_sl
-       '''
+        """
+        reservoir sampling from M_sl
+        """
         if self.is_training:
             exps = self.memory_sl.sample(global_step)
             state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
