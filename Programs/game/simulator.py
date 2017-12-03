@@ -101,7 +101,8 @@ class Simulator:
         self.neural_network_history = {}
         self.neural_network_loss_path = neural_network_loss_path
         self.neural_network_loss = {0: {'q': [], 'pi': []},
-                                    1: {'q':[]}, 'pi': []}
+                                    1: {'q': [], 'pi': []}
+                                   }
 
         # define game-level game states here
         self.new_game = True
@@ -443,11 +444,18 @@ class Simulator:
 
     def save_history_results(self):
         if self.games['n'] % self.log_freq == 0:
-            # we save all history data here
+            # we save all history data here. Clear the dicts after saving them.
             self._save_results(self.games['winnings'], self.game_score_history_path)
+            self.games['winnings'] = {}
             self._save_results(self.play_history, self.play_history_path)
+            self.play_history = {}
             self._save_results(self.neural_network_history, self.neural_network_history_path)
+            self.neural_network_history = {}
             self._save_results(self.neural_network_loss, self.neural_network_loss_path)
+            self.neural_network_loss = {0: {'q': [], 'pi': []},
+                                        1: {'q': [], 'pi': []}
+                                       }            
+            
             print(self.games['n'], " games over")
 
     def update_play_history_with_final_rewards(self):

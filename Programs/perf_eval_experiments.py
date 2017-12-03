@@ -156,6 +156,7 @@ if __name__ == '__main__':
 
     # eu.plot_results(results_dict)
     print('game history')
+    import pdb;pdb.set_trace()
     print(load_results(game_score_history_paths))
     print('play history')
     for k, v in load_results(play_history_paths).items():
