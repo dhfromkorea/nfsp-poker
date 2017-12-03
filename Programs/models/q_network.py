@@ -191,7 +191,6 @@ class QNetwork(t.nn.Module):
                  pi_network=None,
                  learning_rate=1e-4,
                  cuda=False):
-
         super(QNetwork, self).__init__()
 
         self.is_cuda=cuda
@@ -381,9 +380,9 @@ class PiNetwork(t.nn.Module):
         if not 'pi' in self.neural_network_loss[self.player_id]:
             self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
+        self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
             self.tensorboard.add_scalar_value('pi_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
-        self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
 
         loss.backward()
         self.optim.step()
@@ -445,6 +444,7 @@ class QNetworkBN(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
@@ -490,6 +490,7 @@ class QNetworkBN(t.nn.Module):
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
         self.neural_network_loss = neural_network_loss
+        self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
@@ -517,9 +518,12 @@ class QNetworkBN(t.nn.Module):
         # log loss history data
         if not 'q' in self.neural_network_loss[self.player_id]:
             self.neural_network_loss[self.player_id]['q'] = []
-
         raw_loss = loss.data.cpu().numpy()[0]
         self.neural_network_loss[self.player_id]['q'].append(raw_loss)
+        # todo: refactor the hard coded name
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('q_bn_mse_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
+
 
         loss.backward()
         # update weights
@@ -546,6 +550,7 @@ class PiNetworkBN(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 tensorboard=None,
                  shared_network=None,
                  q_network=None,
                  learning_rate=1e-4,
@@ -585,6 +590,7 @@ class PiNetworkBN(t.nn.Module):
         self.player_id = player_id  # know the owner of the network
         self.neural_network_history = neural_network_history
         self.neural_network_loss = neural_network_loss
+        self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
@@ -623,6 +629,8 @@ class PiNetworkBN(t.nn.Module):
             self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
         self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('pi_bn_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
         self.optim.step()

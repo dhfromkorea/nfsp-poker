@@ -1,5 +1,5 @@
 from odds.evaluation import evaluate_hand
-from models.q_network import QNetworkBN as QNetwork, PiNetworkBN as PiNetwork
+from models.q_network import QNetwork, QNetworkBN, PiNetwork, PiNetworkBN
 
 from players.strategies import strategy_RL, strategy_random, strategy_mirror, StrategyNFSP
 from players.player import Player, NeuralFictitiousPlayer
@@ -62,6 +62,7 @@ class Simulator:
                  gamma,
                  learning_rate,
                  target_Q_update_freq,
+                 use_batch_norm,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
@@ -84,6 +85,7 @@ class Simulator:
         self.learning_rate = learning_rate
         self.target_Q_update_freq = target_Q_update_freq
         self.learn_start = learn_start
+        self.use_batch_norm = use_batch_norm
 
         # NFSP-speicfic network hyperparams
         self.etas = {0: eta_p1, 1: eta_p2}
@@ -112,25 +114,37 @@ class Simulator:
 
         # define players
         featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
-        Q0 = QNetwork(n_actions=NUM_ACTIONS,
+
+        if self.use_batch_norm:
+            # ugly switch that does not scale
+            # for simplicy let's keep this way
+            # as we may still want to keep testing Q without BN
+            Q = QNetworkBN
+            Pi = PiNetworkBN
+        else:
+            Q = QNetwork
+            Pi = PiNetwork
+
+
+        Q0 = Q(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
                       game_info=self.games,  # bad, but simple (@hack)
                       player_id=0,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
-                      tensorboard=tensorboard,
+                      tensorboard=self.tensorboard,
                       cuda=cuda)
-        Q1 = QNetwork(n_actions=NUM_ACTIONS,
+        Q1 = Q(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
                       game_info=self.games,  # bad, but simple (@hack)
                       player_id=1,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
-                      tensorboard=tensorboard,
+                      tensorboard=self.tensorboard,
                       cuda=cuda)
-        Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
+        Pi0 = Pi(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
                         q_network=Q0,  # to share weights
@@ -138,9 +152,9 @@ class Simulator:
                         player_id=0,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
-                        tensorboard=tensorboard,
+                        tensorboard=self.tensorboard,
                         cuda=cuda)
-        Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
+        Pi1 = Pi(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
                         featurizer=featurizer,
                         q_network=Q1,  # to share weights with Q1
@@ -148,7 +162,7 @@ class Simulator:
                         player_id=1,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
-                        tensorboard=tensorboard,
+                        tensorboard=self.tensorboard,
                         cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}

@@ -38,6 +38,7 @@ def get_arg_parser():
     parser.add_argument('-ss', '--skip_simulation', action='store_true',
                         dest='skip_simulation', help='show only the latest results without simulation')
     parser.set_defaults(skip_simulation=False)
+    parser.add_argument('-en', '--experiment_name', default='abc', type=str, help="name to be displayed in tensorboard", dest="experiment_name")
     # game/experiment
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
@@ -61,12 +62,15 @@ def get_arg_parser():
                         help='gamma')
     parser.add_argument('-lr', '--learning_rate', default=1e-4, type=float, dest='learning_rate',
                         help='learning rate')
-    parser.add_argument('-tf', '--target_Q_update_freq', default=500, type=int,
+    parser.add_argument('-tf', '--target_Q_update_freq', default=100, type=int,
                         dest='target_Q_update_freq', help='update target Q every X number of episodes')
     parser.add_argument('-ep1', '--eta_p1', default=0.75, type=float, dest='eta_p1',
                         help='eta for player 1')
     parser.add_argument('-ep2', '--eta_p2', default=0.5, type=float, dest='eta_p2',
                         help='eta for player 2')
+    # flipped logic but let's keep this for now
+    parser.add_argument('-bn', '--use_batch_norm', action='store_false', dest='use_batch_norm')
+    parser.set_defaults(use_batch_norm=True)
     return parser
 
 def setup_tensorboard(name, host_name='http://localhost'):
@@ -114,15 +118,14 @@ if __name__ == '__main__':
     gamma = args.gamma
     learning_rate = args.learning_rate
     target_Q_update_freq = args.target_Q_update_freq
-    #experiment_name = args.experiment_name
+    use_batch_norm = args.use_batch_norm
     # TODO: make experiment_name in sync with saved_model_name
-    experiment_name = str(time.ctime())
+    experiment_name = '{}_{}'.format(args.experiment_name, str(time.ctime()))
 
     tb_experiment, _ = setup_tensorboard(experiment_name)
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
-
     if not skip_simulation:
         # sometimes we want to skip simulation and view only the latest simulation results
         memory_rl_config = {
@@ -165,7 +168,8 @@ if __name__ == '__main__':
                                                           # default false
                                                           cuda=cuda,
                                                           verbose=verbose,
-                                                          tensorboard=tb_experiment
+                                                          tensorboard=tb_experiment,
+                                                          use_batch_norm=use_batch_norm
                                                           )
 
     # pick the latest created file == results just created from the simulation above
