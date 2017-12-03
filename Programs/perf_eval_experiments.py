@@ -15,10 +15,12 @@ PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
 
+
 def load_results(path):
     with open(path, 'rb') as f:
         data = pickle.load(f)
     return data
+
 
 def get_arg_parser():
     parser = argparse.ArgumentParser(description='process configuration vars')
@@ -37,16 +39,16 @@ def get_arg_parser():
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
     parser.add_argument('-lf', '--log_freq', default=100, type=int, dest='log_freq', help='log game results frequency')
-    parser.add_argument('-ls', '--learn_start', default=2**7, type=int, dest='learn_start',
+    parser.add_argument('-ls', '--learn_start', default=2 ** 7, type=int, dest='learn_start',
                         help='starting point for training networks')
     # experience replay
-    parser.add_argument('-bs', '--batch_size', default=2**5, type=int, dest='batch_size',
+    parser.add_argument('-bs', '--batch_size', default=2 ** 5, type=int, dest='batch_size',
                         help='batch size of Memory RL')
-    parser.add_argument('-bfs', '--buffer_size', default=2**17, type=int, dest='buffer_size',
+    parser.add_argument('-bfs', '--buffer_size', default=2 ** 17, type=int, dest='buffer_size',
                         help='buffer size of Memory RL')
-    parser.add_argument('-np', '--num_partitions', default=2**11, type=int, dest='num_partitions',
+    parser.add_argument('-np', '--num_partitions', default=2 ** 11, type=int, dest='num_partitions',
                         help='number of partitions to Memory RL')
-    parser.add_argument('-ts', '--total_steps', default=10**9, type=int, dest='total_steps',
+    parser.add_argument('-ts', '--total_steps', default=10 ** 9, type=int, dest='total_steps',
                         help='total steps to Memory RL')
     # define neural network parameters here
 
@@ -54,15 +56,16 @@ def get_arg_parser():
                         help='eps')
     parser.add_argument('-g', '--gamma', default=0.95, type=float, dest='gamma',
                         help='gamma')
-    parser.add_argument('-lr', '--learning_rate', default=1e-3, type=float, dest='learning_rate',
+    parser.add_argument('-lr', '--learning_rate', default=1e-4, type=float, dest='learning_rate',
                         help='learning rate')
-    parser.add_argument('-tf', '--target_Q_update_freq', default=100, type=int,
+    parser.add_argument('-tf', '--target_Q_update_freq', default=500, type=int,
                         dest='target_Q_update_freq', help='update target Q every X number of episodes')
-    parser.add_argument('-ep1', '--eta_p1', default=0.5, type=float, dest='eta_p1',
+    parser.add_argument('-ep1', '--eta_p1', default=0.75, type=float, dest='eta_p1',
                         help='eta for player 1')
     parser.add_argument('-ep2', '--eta_p2', default=0.5, type=float, dest='eta_p2',
                         help='eta for player 2')
     return parser
+
 
 if __name__ == '__main__':
     '''
@@ -99,19 +102,19 @@ if __name__ == '__main__':
     if not skip_simulation:
         # sometimes we want to skip simulation and view only the latest simulation results
         memory_rl_config = {
-                       #'size': 2 ** 17,
-                       'size': buffer_size,
-                       #'partition_num': 2 ** 11,
-                       'partition_num': num_partitions,
-                       #'total_step': 10 ** 9,
-                       'total_step': total_steps,
-                       #'batch_size': 2 ** 5
-                       'batch_size': batch_size,
-                       }
+            # 'size': 2 ** 17,
+            'size': buffer_size,
+            # 'partition_num': 2 ** 11,
+            'partition_num': num_partitions,
+            # 'total_step': 10 ** 9,
+            'total_step': total_steps,
+            # 'batch_size': 2 ** 5
+            'batch_size': batch_size,
+        }
         memory_sl_config = {
-                       'size': 2 ** 15,
-                       'batch_size': 2 ** 6
-                       }
+            'size': 2 ** 15,
+            'batch_size': 2 ** 6
+        }
         results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
                                                           # 2 ** 7
                                                           learn_start=learn_start,
@@ -141,14 +144,13 @@ if __name__ == '__main__':
                                                           verbose=verbose
                                                           )
 
-
     # pick the latest created file == results just created from the simulation above
     game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
     play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
     neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
     neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
 
-    #eu.plot_results(results_dict)
+    # eu.plot_results(results_dict)
     print('game history')
     print(load_results(game_score_history_paths))
     print('play history')
