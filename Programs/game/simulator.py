@@ -27,6 +27,7 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.form
 PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
 
+NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
@@ -58,6 +59,7 @@ class Simulator:
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
                  play_history_path=PLAY_HISTORY_PATH,
                  neural_network_history_path=NEURAL_NETWORK_HISTORY_PATH,
+                 neural_network_loss_path=NEURAL_NETWORK_LOSS_PATH,
                  memory_rl_config={},
                  memory_sl_config={},
                  log_freq=100,
@@ -79,15 +81,21 @@ class Simulator:
         self.memory_sl_config = memory_sl_config
 
         # historical data
+        # 1. game score
+        self.games = {'n': 0, '#episodes': 0, 'winnings': {}}
         self.game_score_history_path = game_score_history_path
+        # 2. play
+        self.play_history = {}
         self.play_history_path = play_history_path
+        # 3. neural network
         self.neural_network_history_path = neural_network_history_path
         self.neural_network_history = {}
-        self.play_history = {}
+        self.neural_network_loss_path = neural_network_loss_path
+        self.neural_network_loss = {0: {'q': [], 'pi': []},
+                                    1: {'q':[]}, 'pi': []}
 
         # define game-level game states here
         self.new_game = True
-        self.games = {'n': 0, '#episodes': 0, 'winnings': {}}  # some statistics on the games
         self.global_step = 0
 
         # define players
@@ -98,6 +106,7 @@ class Simulator:
                       game_info=self.games,  # bad, but simple (@hack)
                       player_id=0,
                       neural_network_history=self.neural_network_history,
+                      neural_network_loss=self.neural_network_loss,
                       cuda=cuda)
         Q1 = QNetwork(n_actions=NUM_ACTIONS,
                       hidden_dim=NUM_HIDDEN_LAYERS,
@@ -105,6 +114,7 @@ class Simulator:
                       game_info=self.games,  # bad, but simple (@hack)
                       player_id=1,
                       neural_network_history=self.neural_network_history,
+                      neural_network_loss=self.neural_network_loss,
                       cuda=cuda)
         Pi0 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
@@ -112,6 +122,7 @@ class Simulator:
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=0,
                         neural_network_history=self.neural_network_history,
+                        neural_network_loss=self.neural_network_loss,
                         cuda=cuda)
         Pi1 = PiNetwork(n_actions=NUM_ACTIONS,
                         hidden_dim=NUM_HIDDEN_LAYERS,
@@ -119,6 +130,7 @@ class Simulator:
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=1,
                         neural_network_history=self.neural_network_history,
+                        neural_network_loss=self.neural_network_loss,
                         cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
@@ -413,11 +425,14 @@ class Simulator:
 
     def update_winnings(self):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
+
+    def save_history_results(self):
         if self.games['n'] % self.log_freq == 0:
             # we save all history data here
             self._save_results(self.games['winnings'], self.game_score_history_path)
             self._save_results(self.play_history, self.play_history_path)
             self._save_results(self.neural_network_history, self.neural_network_history_path)
+            self._save_results(self.neural_network_loss, self.neural_network_loss_path)
             print(self.games['n'], " games over")
 
     def update_play_history_with_final_rewards(self):
@@ -448,6 +463,7 @@ class Simulator:
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:
             self.update_winnings()
+            self.save_history_results()
             self.new_game = True
         else:
             self.new_game = False

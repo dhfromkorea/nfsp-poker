@@ -10,6 +10,8 @@ import numpy as np
 import random
 import torch as t
 import random
+from timeit import default_timer as timer
+
 
 TARGET_NETWORK_UPDATE_PERIOD = 300  # every 300 episodes
 ANTICIPATORY_PARAMETER = 0.1
@@ -153,16 +155,25 @@ class StrategyNFSP():
             return Action('null'), False
         if self.eta > np.random.rand():
             # use epsilon-greey policy
+            if self.verbose:
+                start = timer()
             action = strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack,
                                      opponent_side_pot, self._Q, greedy=self.is_greedy, blinds=blinds,
                                      verbose=self.verbose, eps=self.eps, cuda=self.cuda)
+            if self.verbose:
+                print('forward pass of Q took', timer() - start)
+
             self.is_Q_used = True
         else:
             # use average policy
             state = build_state(player, board, pot, actions, opponent_stack, blinds[1],
                                 as_variable=False)
             state = [variable(s, cuda=self.cuda) for s in state]
+            if self.verbose:
+                start = timer()
             action_probs = self._pi.forward(*state).squeeze()
+            if self.verbose:
+                print('forward pass of pi took', timer() - start)
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
             # print('possible_actions')
             # print(possible_actions)
