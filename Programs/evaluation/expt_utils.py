@@ -78,6 +78,6 @@ def plot_results(results_dict, show=False, save=False, p_id=0, plot_id=randint(1
     if show:
         plt.show()
     else:
-        plt.savefig("WinRates_", plot_id)
+        plt.savefig("WinRates_{}".format(plot_id), ppi=300, bbox_inches='tight')
 
     print("Process done and plots saved")
