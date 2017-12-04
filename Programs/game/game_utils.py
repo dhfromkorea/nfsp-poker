@@ -643,8 +643,13 @@ def actions_to_array(actions):
     return all_plays
 
 
-def one_hot_encode_actions(actions, cuda=False):
+def bucket_encode_actions(actions, cuda=False):
     """
+    NOTE THAT THIS IS NOT ONE HOT ENCODING
+    THIS IS RATHER BUCKET ENCODING (PUT AN ACTION REPRESENTED AS A 6x1 ARRAY TO AN INTEGER BUCKET)
+    IT CAN BE USED IN THE LOSS
+
+    YOU SHOULD ADD +1 (see the keys of `Action.BET_BUCKETS` to understand why)
 
     :param actions: a VARIABLE of size batch_size x 5 (il y a 5 types d'actions: check, bet, call, raise, all-in)
     :return: a VARIABLE of size batch_size x 14 (il y a 14 buckets)
@@ -658,21 +663,4 @@ def one_hot_encode_actions(actions, cuda=False):
         indicator = lambda x: bucket_idx*(x>=Action.BET_BUCKETS[bucket_idx][0]).float()*((x<=Action.BET_BUCKETS[bucket_idx][1]).float())
         mask = (indices != 0)*(indices != 5)*(indices != 4)
         actions_buckets[mask] += indicator(values[mask])
-        # actions_buckets[indices != 0] += indicator(values[indices != 0])
-        # actions_buckets[indices != 5] += indicator(values[indices != 5])
-        # actions_buckets[indices != 4] += indicator(values[indices != 4])
     return actions_buckets
-
-
-if __name__ == '__main__':
-    for j in range(10):
-        print(j)
-        deck = Deck()
-        deck.populate()
-        deck.shuffle()
-        cards = []
-        for i in range(3):
-            cards.append(deck.cards.pop())
-        print(list(sorted(cards)))
-        print(list(sorted(array_to_cards(cards_to_array(cards)))))
-        print()

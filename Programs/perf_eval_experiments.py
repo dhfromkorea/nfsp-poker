@@ -28,6 +28,8 @@ def load_results(path):
 def get_arg_parser():
     parser = argparse.ArgumentParser(description='process configuration vars')
     # dev level
+    parser.add_argument('-s1', default = 'NFSP', dest = 'strategy1')
+    parser.add_argument('-s2', default = 'random', dest = 'strategy2')
     parser.add_argument('-c', '--cuda', action='store_true', dest='cuda')
     parser.set_defaults(cuda=False)
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose')
@@ -121,8 +123,9 @@ if __name__ == '__main__':
     use_batch_norm = args.use_batch_norm
     # TODO: make experiment_name in sync with saved_model_name
     experiment_name = '{}_{}'.format(args.experiment_name, str(time.ctime()))
-
     tb_experiment, _ = setup_tensorboard(experiment_name)
+    strategy1 = args.strategy1
+    strategy2 = args.strategy2
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
@@ -142,7 +145,7 @@ if __name__ == '__main__':
             'size': 2 ** 15,
             'batch_size': 2 ** 6
         }
-        results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'random',
+        results_dict[strategy1 + 'vs' + strategy2] = eu.conduct_games(strategy1, strategy2,
                                                           # 2 ** 7
                                                           learn_start=learn_start,
                                                           # 10000

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import time
-from game.game_utils import one_hot_encode_actions
+from game.game_utils import one_hot_encode_actions, bucket_encode_actions
 
 selu = SELU()
 softmax = Softmax()
@@ -254,11 +254,14 @@ class QNetwork(t.nn.Module):
 
         return q_values
 
-    def learn(self, states, Q_targets, imp_weights):
+    def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
-        Q_preds = self.forward(*states)[:, 0].squeeze()
+        all_Q_preds = self.forward(*states)
+        actions_ = (bucket_encode_actions(actions) + 1).long()
+        Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
+
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
@@ -373,7 +376,7 @@ class PiNetwork(t.nn.Module):
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         criterion = nn.CrossEntropyLoss()
-        one_hot_actions = one_hot_encode_actions(actions, cuda=self.is_cuda)
+        one_hot_actions = bucket_encode_actions(actions, cuda=self.is_cuda)
         loss = criterion(pi_preds, (1+one_hot_actions).long())
 
         # log loss history data
@@ -407,7 +410,7 @@ class SharedNetworkBN(t.nn.Module):
         self.bn22 = BN(hdim, momentum=.99)
         self.fc23 = fc(hdim, hdim)
         self.bn23 = BN(hdim, momentum=.99)
-        self.fc24 = fc(5, hdim)
+        self.fc24 = fc(6, hdim)
         self.bn24 = BN(hdim, momentum=.99)
         self.fc25 = fc(3 * hdim, hdim)
         self.bn25 = BN(hdim, momentum=.99)
@@ -417,7 +420,7 @@ class SharedNetworkBN(t.nn.Module):
         if cuda:
             self.cuda()
 
-    def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+    def forward(self, HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         # PROCESS THE ACTIONS THAT WERE TAKEN IN THE CURRENT EPISODE
         processed_preflop = leakyrelu(self.bn19(self.fc19(flatten(preflop_plays))))
         processed_flop = leakyrelu(self.bn20(self.fc20(t.cat([flatten(flop_plays), flop_features], -1))))
@@ -426,7 +429,7 @@ class SharedNetworkBN(t.nn.Module):
         plays = leakyrelu(self.bn23(self.fc23(processed_preflop + processed_flop + processed_turn + processed_river)))
 
         # add pot, dealer, blinds, dealer, stacks
-        pbds = leakyrelu(self.bn24(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1))))
+        pbds = leakyrelu(self.bn24(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer, HS], -1))))
 
         # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
         situation_with_opponent = leakyrelu(self.bn25(self.fc25(t.cat([plays, pbds, cards_features], -1))))
@@ -495,7 +498,7 @@ class QNetworkBN(t.nn.Module):
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
-        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+        situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))
         q_values = self.bn28(self.fc28(q_values))
 
@@ -508,11 +511,13 @@ class QNetworkBN(t.nn.Module):
 
         return q_values
 
-    def learn(self, states, Q_targets, imp_weights):
+    def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
-        Q_preds = self.forward(*states)[:, 0].squeeze()
+        all_Q_preds = self.forward(*states)
+        actions_ = (bucket_encode_actions(actions) + 1).long()
+        Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
@@ -595,7 +600,7 @@ class PiNetworkBN(t.nn.Module):
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
-        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+        situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))
         pi_values = softmax(self.bn28(self.fc28(pi_values)))
@@ -621,7 +626,7 @@ class PiNetworkBN(t.nn.Module):
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         criterion = nn.CrossEntropyLoss()
-        one_hot_actions = one_hot_encode_actions(actions, cuda=self.is_cuda)
+        one_hot_actions = bucket_encode_actions(actions, cuda=self.is_cuda)
         loss = criterion(pi_preds, (1 + one_hot_actions).long())
 
         # log loss history data

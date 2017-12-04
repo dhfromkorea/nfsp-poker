@@ -451,12 +451,20 @@ class Simulator:
 
     def save_history_results(self):
         if self.games['n'] % self.log_freq == 0:
-            # we save all history data here
+            # we save all history data here. Clear the dicts after saving them.
             self._save_results(self.games['winnings'], self.game_score_history_path)
+            self.games['winnings'] = {}
             self._save_results(self.play_history, self.play_history_path)
+            self.play_history = {}
             self._save_results(self.neural_network_history, self.neural_network_history_path)
+            self.neural_network_history = {}
             self._save_results(self.neural_network_loss, self.neural_network_loss_path)
             self.tensorboard.to_zip('{}_'.format(EXPERIMENT_PATH, time()))
+            self.neural_network_loss = {
+                                        0: {'q': [], 'pi': []},
+                                        1: {'q': [], 'pi': []}
+                                       }
+
             print(self.games['n'], " games over")
 
     def _send_correct_final_reward_to_tensorboard(self):
@@ -526,6 +534,7 @@ class Simulator:
         self.players[1].stack += pot_1
         self.players[0].contribution_in_this_pot = 0
         self.players[1].contribution_in_this_pot = 0
+        self.total_reward_in_episode = {0:0, 1:0}
 
         # RL : update the memory with the amount you won
         self.experiences[0]['final_reward'] = pot_0
@@ -548,8 +557,11 @@ class Simulator:
     def _handle_no_split(self):
         """Note that this function actually updates self.experiences with the final rewards and next state"""
         # if the winner isn't all in, it takes everything
+        self.total_reward_in_episode = {0: 0, 1: 0}
         if self.players[self.winner].stack > 0:
             self.players[self.winner].stack += self.pot
+            self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
+            self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
             # RL
             if self.players[self.winner].player_type == 'nfsp':
@@ -561,6 +573,8 @@ class Simulator:
             s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
             if s_pot[self.winner] * 2 > self.pot:
                 self.players[self.winner].stack += self.pot
+                self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
+                self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
                 # RL
                 if self.players[self.winner].player_type == 'nfsp':
@@ -569,6 +583,8 @@ class Simulator:
             else:
                 self.players[self.winner].stack += 2 * s_pot[self.winner]
                 self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
+                self.total_reward_in_episode[self.winner] += 2 * s_pot[self.winner] - self.players[self.winner].contribution_in_this_pot
+                self.total_reward_in_episode[1 - self.winner] += self.pot - 2 * s_pot[self.winner] - self.players[1 - self.winner].contribution_in_this_pot
 
                 # RL
                 if self.players[self.winner].player_type == 'nfsp':
