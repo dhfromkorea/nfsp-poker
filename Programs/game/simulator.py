@@ -397,7 +397,7 @@ class Simulator:
         self.play_history[self.global_step] = {}
         ph = self.play_history[self.global_step]
         exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
-        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': exp['r']}
+        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': 0}
         ph['game'] = {
             'episode_index': self.games['#episodes'],
             'to_play': self.to_play,
@@ -532,11 +532,6 @@ class Simulator:
             self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
             self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
-            # RL
-            if self.players[self.winner].player_type == 'nfsp':
-                if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
-                    self.experiences[self.winner]['final_reward'] = self.pot
-
         # if the winner is all in, it takes only min(what it put in the pot*2, pot)
         else:
             s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
@@ -545,23 +540,19 @@ class Simulator:
                 self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
                 self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
-                # RL
-                if self.players[self.winner].player_type == 'nfsp':
-                    if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
-                        self.experiences[self.winner]['final_reward'] = self.pot
             else:
                 self.players[self.winner].stack += 2 * s_pot[self.winner]
                 self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
                 self.total_reward_in_episode[self.winner] += 2 * s_pot[self.winner] - self.players[self.winner].contribution_in_this_pot
                 self.total_reward_in_episode[1 - self.winner] += self.pot - 2 * s_pot[self.winner] - self.players[1 - self.winner].contribution_in_this_pot
 
-                # RL
-                if self.players[self.winner].player_type == 'nfsp':
-                    if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
-                        self.experiences[self.winner]['final_reward'] = 2 * s_pot[self.winner]
-                if self.players[1 - self.winner].player_type == 'nfsp':
-                    if not self.players[1 - self.winner].memory_rl.is_last_step_buffer_empty:
-                        self.experiences[1 - self.winner]['final_reward'] = self.pot - 2 * s_pot[self.winner]
+        # RL
+        if self.players[self.winner].player_type == 'nfsp':
+            if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
+                self.experiences[self.winner]['final_reward'] = self.total_reward_in_episode[self.winner]
+        if self.players[1 - self.winner].player_type == 'nfsp':
+            if not self.players[1 - self.winner].memory_rl.is_last_step_buffer_empty:
+                self.experiences[1 - self.winner]['final_reward'] = self.total_reward_in_episode[1 - self.winner]
 
         self.experiences[0]['is_terminal'] = True
         self.experiences[1]['is_terminal'] = True
