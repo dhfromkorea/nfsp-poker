@@ -471,23 +471,9 @@ class Simulator:
         '''
         send only the corrected final rewards after every episode
         '''
-        if 0 in self.play_history[self.global_step]:
-            gs_p1 = self.global_step
-            gs_p2 = self.global_step - 1
-        else:
-            gs_p1 = self.global_step - 1
-            gs_p2 = self.global_step
-
         t = time()
-
-        if self.players[0].has_played:
-            # p1's final reward was updated, we overwrite the history
-            final_reward_p1 = self.play_history[gs_p1][0]['r']
-            self.tensorboard.add_scalar_value('reward_1', final_reward_p1, t)
-        if self.players[1].has_played:
-            # p2's final reward was updated, we overwrite the history
-            final_reward_p2 = self.play_history[gs_p2][1]['r']
-            self.tensorboard.add_scalar_value('reward_2', final_reward_p2, t)
+        self.tensorboard.add_scalar_value('reward_1', self.total_reward_in_episode[0], t)
+        self.tensorboard.add_scalar_value('reward_2', self.total_reward_in_episode[1], t)
 
     def update_play_history_with_final_rewards(self):
         try:

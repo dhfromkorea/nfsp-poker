@@ -380,7 +380,6 @@ def bucket_to_action(bucket, actions, b_round, player, opponent_side_pot):
                             raise ValueError(('It should\'nt happen', bucket, actions, raise_value, opponent_side_pot, player.stack, player.side_pot))
     raise ValueError((actions, player, bucket, b_round))
 
-
 def get_raise_from_bucket(bucket, actions, b_round, player, opponent_side_pot, raise_val=0):
     """
     Note that the raise is what you BET ABOVE THE CURRENT SIDE POT OF THE OPPONENT (TAKING INTO ACCOUNT ALL OF ITS BETS IN THE CURRENT ROUND)
@@ -642,7 +641,6 @@ def actions_to_array(actions):
         all_plays.append(b_round_plays)
     return all_plays
 
-
 def bucket_encode_actions(actions, cuda=False):
     """
     NOTE THAT THIS IS NOT ONE HOT ENCODING
@@ -655,6 +653,7 @@ def bucket_encode_actions(actions, cuda=False):
     :return: a VARIABLE of size batch_size x 14 (il y a 14 buckets)
     """
     values, indices = t.max(actions, -1)
+    import pdb;pdb.set_trace()
     actions_buckets = variable(np.zeros(values.data.cpu().numpy().shape), cuda=cuda)
     actions_buckets[indices==0] = 0  # check
     actions_buckets[indices==4] = 14  # all in

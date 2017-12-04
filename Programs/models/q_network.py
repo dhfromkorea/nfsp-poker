@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import time
-from game.game_utils import one_hot_encode_actions, bucket_encode_actions
+from game.game_utils import bucket_encode_actions
 
 selu = SELU()
 softmax = Softmax()
