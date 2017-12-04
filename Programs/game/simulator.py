@@ -503,6 +503,7 @@ class Simulator:
         self.players[1].stack += pot_1
         self.players[0].contribution_in_this_pot = 0
         self.players[1].contribution_in_this_pot = 0
+        self.total_reward_in_episode = {0:0, 1:0}
 
         # RL : update the memory with the amount you won
         self.experiences[0]['final_reward'] = pot_0
@@ -525,8 +526,11 @@ class Simulator:
     def _handle_no_split(self):
         """Note that this function actually updates self.experiences with the final rewards and next state"""
         # if the winner isn't all in, it takes everything
+        self.total_reward_in_episode = {0: 0, 1: 0}
         if self.players[self.winner].stack > 0:
             self.players[self.winner].stack += self.pot
+            self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
+            self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
             # RL
             if self.players[self.winner].player_type == 'nfsp':
@@ -538,6 +542,8 @@ class Simulator:
             s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
             if s_pot[self.winner] * 2 > self.pot:
                 self.players[self.winner].stack += self.pot
+                self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
+                self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
 
                 # RL
                 if self.players[self.winner].player_type == 'nfsp':
@@ -546,6 +552,8 @@ class Simulator:
             else:
                 self.players[self.winner].stack += 2 * s_pot[self.winner]
                 self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
+                self.total_reward_in_episode[self.winner] += 2 * s_pot[self.winner] - self.players[self.winner].contribution_in_this_pot
+                self.total_reward_in_episode[1 - self.winner] += self.pot - 2 * s_pot[self.winner] - self.players[1 - self.winner].contribution_in_this_pot
 
                 # RL
                 if self.players[self.winner].player_type == 'nfsp':
