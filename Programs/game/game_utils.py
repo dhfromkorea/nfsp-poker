@@ -653,7 +653,6 @@ def bucket_encode_actions(actions, cuda=False):
     :return: a VARIABLE of size batch_size x 14 (il y a 14 buckets)
     """
     values, indices = t.max(actions, -1)
-    import pdb;pdb.set_trace()
     actions_buckets = variable(np.zeros(values.data.cpu().numpy().shape), cuda=cuda)
     actions_buckets[indices==0] = 0  # check
     actions_buckets[indices==4] = 14  # all in

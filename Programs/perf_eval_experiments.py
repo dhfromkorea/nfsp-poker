@@ -24,7 +24,6 @@ def load_results(path):
         data = pickle.load(f)
     return data
 
-
 def get_arg_parser():
     parser = argparse.ArgumentParser(description='process configuration vars')
     # dev level
@@ -48,10 +47,14 @@ def get_arg_parser():
     parser.add_argument('-ls', '--learn_start', default=2 ** 7, type=int, dest='learn_start',
                         help='starting point for training networks')
     # experience replay
-    parser.add_argument('-bs', '--batch_size', default=2 ** 5, type=int, dest='batch_size',
+    parser.add_argument('-bs_rl', '--batch_size_rl', default=2 ** 5, type=int, dest='batch_size_rl',
                         help='batch size of Memory RL')
-    parser.add_argument('-bfs', '--buffer_size', default=2 ** 17, type=int, dest='buffer_size',
+    parser.add_argument('-bfs_rl', '--buffer_size_rl', default=2 ** 17, type=int, dest='buffer_size_rl',
                         help='buffer size of Memory RL')
+    parser.add_argument('-bs_sl', '--batch_size_sl', default=2 ** 5, type=int, dest='batch_size_sl',
+                        help='batch size of Memory SL')
+    parser.add_argument('-bfs_sl', '--buffer_size_sl', default=2 ** 17, type=int, dest='buffer_size_sl',
+                        help='buffer size of Memory SL')
     parser.add_argument('-np', '--num_partitions', default=2 ** 11, type=int, dest='num_partitions',
                         help='number of partitions to Memory RL')
     parser.add_argument('-ts', '--total_steps', default=10 ** 9, type=int, dest='total_steps',
@@ -62,8 +65,10 @@ def get_arg_parser():
                         help='eps')
     parser.add_argument('-g', '--gamma', default=0.95, type=float, dest='gamma',
                         help='gamma')
-    parser.add_argument('-lr', '--learning_rate', default=1e-4, type=float, dest='learning_rate',
-                        help='learning rate')
+    parser.add_argument('-lr_rl', '--learning_rate_rl', default=0.001, type=float,
+                        dest='learning_rate_rl', help='learning rate for memory rl')
+    parser.add_argument('-lr_sl', '--learning_rate_sl', default=0.001, type=float,
+                        dest='learning_rate_sl', help='learning rate for memory sl')
     parser.add_argument('-tf', '--target_Q_update_freq', default=100, type=int,
                         dest='target_Q_update_freq', help='update target Q every X number of episodes')
     parser.add_argument('-ep1', '--eta_p1', default=0.75, type=float, dest='eta_p1',
@@ -71,8 +76,13 @@ def get_arg_parser():
     parser.add_argument('-ep2', '--eta_p2', default=0.5, type=float, dest='eta_p2',
                         help='eta for player 2')
     # flipped logic but let's keep this for now
-    parser.add_argument('-bn', '--use_batch_norm', action='store_false', dest='use_batch_norm')
-    parser.set_defaults(use_batch_norm=True)
+    parser.add_argument('-bn', '--use_batch_norm', action='store_true', dest='use_batch_norm')
+    parser.set_defaults(use_batch_norm=False)
+    parser.add_argument('-opt', '--optimizer', default='adam', type=str, help="optimizer to use",
+                        dest="optimizer")
+    parser.add_argument('-gc', '--gradient_clip', default=None, type=float, help="max l2 gradient norm", dest="grad_clip")
+    parser.add_argument('-lrnf', '--learning_frequency', default=1, type=int, dest='learning_freq',
+                        help='performing backprop every how many episodes')
     return parser
 
 def setup_tensorboard(name, host_name='http://localhost'):
@@ -96,7 +106,7 @@ if __name__ == '__main__':
     '''
     If you want to play around with the hyperparameters, you can do:
 
-    (e.g.) python perf_eval_experiments.py -v -c -ng 100 -ls 128 -bs 4 -bfs 128 -np 16
+    (e.g.) python perf_eval_experiments.py -v -c -ng 100 -ls 256 -bs_rl 32 -bfs_rl 128 -bs_sl 32 -bfs_sl 256 -np 16
 
     do: python script.py --flag value --another_flat value
 
@@ -109,8 +119,12 @@ if __name__ == '__main__':
     num_games = args.num_games
     mov_avg_window = args.mov_avg_window
     learn_start = args.learn_start
-    batch_size = args.batch_size
-    buffer_size = args.buffer_size
+
+    batch_size_rl = args.batch_size_rl
+    buffer_size_rl = args.buffer_size_rl
+    batch_size_sl = args.batch_size_sl
+    buffer_size_sl = args.buffer_size_sl
+
     num_partitions = args.num_partitions
     total_steps = args.total_steps
     eta_p1 = args.eta_p1
@@ -118,12 +132,16 @@ if __name__ == '__main__':
     skip_simulation = args.skip_simulation
     eps = args.eps
     gamma = args.gamma
-    learning_rate = args.learning_rate
+    learning_rate_rl = args.learning_rate_rl
+    learning_rate_sl = args.learning_rate_sl
     target_Q_update_freq = args.target_Q_update_freq
     use_batch_norm = args.use_batch_norm
     # TODO: make experiment_name in sync with saved_model_name
     experiment_name = '{}_{}'.format(args.experiment_name, str(time.ctime()))
     tb_experiment, _ = setup_tensorboard(experiment_name)
+    optimizer = args.optimizer
+    grad_clip = args.grad_clip
+    learning_freq = args.learning_freq
     strategy1 = args.strategy1
     strategy2 = args.strategy2
 
@@ -133,17 +151,17 @@ if __name__ == '__main__':
         # sometimes we want to skip simulation and view only the latest simulation results
         memory_rl_config = {
             # 'size': 2 ** 17,
-            'size': buffer_size,
+            'size': buffer_size_rl,
             # 'partition_num': 2 ** 11,
             'partition_num': num_partitions,
             # 'total_step': 10 ** 9,
             'total_step': total_steps,
             # 'batch_size': 2 ** 5
-            'batch_size': batch_size,
+            'batch_size': batch_size_rl
         }
         memory_sl_config = {
-            'size': 2 ** 15,
-            'batch_size': 2 ** 6
+            'size': buffer_size_sl,
+            'batch_size': batch_size_sl
         }
         results_dict[strategy1 + 'vs' + strategy2] = eu.conduct_games(strategy1, strategy2,
                                                           # 2 ** 7
@@ -163,7 +181,11 @@ if __name__ == '__main__':
                                                           # default 0.95
                                                           gamma=gamma,
                                                           # default 1e-3
-                                                          learning_rate=learning_rate,
+                                                          learning_rate_rl=learning_rate_rl,
+                                                          learning_rate_sl=learning_rate_sl,
+                                                          optimizer=optimizer,
+                                                          grad_clip=grad_clip,
+                                                          learning_freq=learning_freq,
                                                           # default 100 episodes
                                                           target_Q_update_freq=target_Q_update_freq,
                                                           memory_rl_config=memory_rl_config,

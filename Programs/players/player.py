@@ -43,7 +43,7 @@ class Player:
         self.side_pot = 0
         self.stack = v
 
-    def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds=BLINDS):
+    def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds, episode_idx):
         # if you are all in you cannot do anything
         if self.is_all_in:
             if self.verbose:
@@ -91,8 +91,8 @@ class NeuralFictitiousPlayer(Player):
                  stack,
                  name,
                  learn_start,
+                 learning_freq,
                  gamma,
-                 learning_rate,
                  target_Q_update_freq,
                  memory_rl_config={},
                  memory_sl_config={},
@@ -120,9 +120,9 @@ class NeuralFictitiousPlayer(Player):
         self.strategy = strategy
         self.is_Q_used = False
         self.is_training = is_training
-        self.learning_rate = learning_rate
         self.gamma = gamma
         self.target_update = target_Q_update_freq
+        self.learning_freq = learning_freq
 
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
@@ -131,15 +131,18 @@ class NeuralFictitiousPlayer(Player):
         self.memory_rl = ReplayBufferManager(target='rl', config=memory_rl_config, learn_start=learn_start)
         self.memory_sl = ReplayBufferManager(target='sl', config=memory_sl_config, learn_start=learn_start)
 
-    def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
+    def play(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds,
+             episode_idx):
         """
         TODO: check the output action dimension
         """
-        action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds)
+        action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round,
+                                                             opponent_stack, opponent_side_pot,
+                                                             blinds, episode_idx)
 
         return action
 
-    def learn(self, global_step, episode_i, is_training=True):
+    def learn(self, global_step, episode_idx, is_training=True):
         """
         NSFP algorithm: learn on batch
         TODO: add a second player with Q and PI
@@ -148,18 +151,22 @@ class NeuralFictitiousPlayer(Player):
             print('global step', global_step)
             print('Record Size of M_RL', self.memory_rl._buffer.record_size)
             print('Record Size of M_SL', self.memory_sl._buffer.record_size)
-        if self._is_ready_to_learn_RL(global_step):
-            self._learn_rl(global_step)
 
-        if self._is_ready_to_learn_SL(global_step):
-            self._learn_sl(global_step)
+        if episode_idx % self.learning_freq == 0:
+            # learn only every X number of episodes
+            # episode_i increments one by one
+            if self._is_ready_to_learn_RL(global_step):
+                self._learn_rl(global_step)
+
+            if self._is_ready_to_learn_SL(global_step):
+                self._learn_sl(global_step)
 
         record_size_rl = self.memory_rl._buffer.record_size
         record_size_sl = self.memory_sl._buffer.record_size
         msg = 'pid: {} record size for RL:{} should be larger than SL: {}'.format(self.id, record_size_rl, record_size_sl)
         # assert (record_size_rl + 1) >= record_size_sl, msg
 
-        if episode_i % self.target_update == 0:
+        if episode_idx % self.target_update == 0:
             if self.verbose:
                 print('sync target network periodically')
             self.strategy.sync_target_network()
@@ -172,7 +179,7 @@ class NeuralFictitiousPlayer(Player):
     def _is_ready_to_learn_SL(self, global_step):
         record_size = self.memory_sl._buffer.record_size
         batch_size = self.memory_sl.batch_size
-        return record_size >= self.learn_start and record_size >= batch_size
+        return record_size >= batch_size
 
     def _learn_rl(self, global_step):
         # sample a minibatch of experiences

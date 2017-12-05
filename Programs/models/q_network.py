@@ -185,11 +185,13 @@ class QNetwork(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 learning_rate,
+                 optimizer,
+                 grad_clip=None,
                  tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
-                 learning_rate=1e-4,
                  cuda=False):
         super(QNetwork, self).__init__()
 
@@ -220,9 +222,18 @@ class QNetwork(t.nn.Module):
             fcc = getattr(self, 'fc' + str(i))
             shape = fcc.weight.data.cpu().numpy().shape
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
-
+        # optimizer
+        self.grad_clip = grad_clip
         self.criterion = nn.MSELoss()
-        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+
+        if optimizer == 'adam':
+            self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+        elif optimizer == 'sgd':
+            # 2016 paper
+            self.optim = optim.SGD(self.parameters(), lr=learning_rate)
+        else:
+            raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
+
 
         # to initialize network on gpu
         if cuda:
@@ -259,7 +270,8 @@ class QNetwork(t.nn.Module):
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
         all_Q_preds = self.forward(*states)
-        actions_ = (bucket_encode_actions(actions) + 1).long()
+
+        actions_ = (bucket_encode_actions(actions, cuda=self.is_cuda) + 1).long()
         Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
 
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
@@ -274,6 +286,10 @@ class QNetwork(t.nn.Module):
         self.neural_network_loss[self.player_id]['q'].append(raw_loss)
 
         loss.backward()
+        # @debug @todo
+        if self.grad_clip is not None:
+            t.nn.utils.clip_grad_norm(self.parameters(), self.grad_clip)
+
         # update weights
         self.optim.step()
         return td_deltas
@@ -298,10 +314,12 @@ class PiNetwork(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 learning_rate,
+                 optimizer,
+                 grad_clip=None,
                  tensorboard=None,
                  shared_network=None,
                  q_network=None,
-                 learning_rate=1e-4,
                  cuda=False):
         super(PiNetwork, self).__init__()
         # cuda is a reserved property for t.nn.Module
@@ -333,7 +351,16 @@ class PiNetwork(t.nn.Module):
             shape = fcc.weight.data.cpu().numpy().shape
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
 
-        self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+        self.grad_clip = grad_clip
+        if optimizer == 'adam':
+            self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+        elif optimizer == 'sgd':
+            # 2016 paper
+            self.optim = optim.SGD(self.parameters(), lr=learning_rate)
+        else:
+            raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
+
+
         if cuda:
             self.cuda()
 
@@ -388,6 +415,9 @@ class PiNetwork(t.nn.Module):
             self.tensorboard.add_scalar_value('pi_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
+        # @debug @hack
+        if self.grad_clip is not None:
+            t.nn.utils.clip_grad_norm(self.parameters(), self.grad_clip)
         self.optim.step()
 
         return loss
@@ -447,11 +477,12 @@ class QNetworkBN(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 learning_rate,
+                 optimizer,
                  tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
-                 learning_rate=1e-4,
                  cuda=False):
 
         super(QNetworkBN, self).__init__()
@@ -516,7 +547,7 @@ class QNetworkBN(t.nn.Module):
         # TODO: support batch forward?
         # not sure if it's supported as it's written now
         all_Q_preds = self.forward(*states)
-        actions_ = (bucket_encode_actions(actions) + 1).long()
+        actions_ = (bucket_encode_actions(actions, cuda=self.is_cuda) + 1).long()
         Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
@@ -555,10 +586,11 @@ class PiNetworkBN(t.nn.Module):
                  player_id,
                  neural_network_history,
                  neural_network_loss,
+                 learning_rate,
+                 optimizer,
                  tensorboard=None,
                  shared_network=None,
                  q_network=None,
-                 learning_rate=1e-4,
                  cuda=False):
         super(PiNetworkBN, self).__init__()
         self.is_cuda = cuda
@@ -640,3 +672,5 @@ class PiNetworkBN(t.nn.Module):
         loss.backward()
         self.optim.step()
         return loss
+
+

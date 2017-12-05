@@ -26,6 +26,8 @@ PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
 EXPERIMENT_PATH = 'data/tensorboard/'
+MODEL_SAVEPATH = 'data/neural_network_history/models/'
+
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
 NUM_ROUNDS = 4  # pre, flop, turn, river
@@ -60,9 +62,12 @@ class Simulator:
                  eta_p2,
                  eps,
                  gamma,
-                 learning_rate,
+                 learning_rate_rl,
+                 learning_rate_sl,
+                 learning_freq,
                  target_Q_update_freq,
                  use_batch_norm,
+                 optimizer,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
@@ -71,6 +76,7 @@ class Simulator:
                  neural_network_loss_path=NEURAL_NETWORK_LOSS_PATH,
                  memory_rl_config={},
                  memory_sl_config={},
+                 grad_clip=None,
                  verbose=False,
                  cuda=False,
                  tensorboard=None,
@@ -82,7 +88,9 @@ class Simulator:
         self.log_freq = log_freq
         self.eps = eps
         self.gamma = gamma
-        self.learning_rate = learning_rate
+        self.learning_rate_rl = learning_rate_rl
+        self.learning_rate_sl = learning_rate_sl
+        self.learning_freq = learning_freq
         self.target_Q_update_freq = target_Q_update_freq
         self.learn_start = learn_start
         self.use_batch_norm = use_batch_norm
@@ -130,7 +138,10 @@ class Simulator:
                       hidden_dim=NUM_HIDDEN_LAYERS,
                       featurizer=featurizer,
                       game_info=self.games,  # bad, but simple (@hack)
+                      learning_rate=learning_rate_rl,
                       player_id=0,
+                      optimizer=optimizer,
+                      grad_clip=grad_clip,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
                       tensorboard=self.tensorboard,
@@ -140,6 +151,9 @@ class Simulator:
                       featurizer=featurizer,
                       game_info=self.games,  # bad, but simple (@hack)
                       player_id=1,
+                      optimizer=optimizer,
+                      grad_clip=grad_clip,
+                      learning_rate=learning_rate_rl,
                       neural_network_history=self.neural_network_history,
                       neural_network_loss=self.neural_network_loss,
                       tensorboard=self.tensorboard,
@@ -150,6 +164,9 @@ class Simulator:
                         q_network=Q0,  # to share weights
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=0,
+                        optimizer=optimizer,
+                        grad_clip=grad_clip,
+                        learning_rate=learning_rate_sl,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
                         tensorboard=self.tensorboard,
@@ -160,6 +177,9 @@ class Simulator:
                         q_network=Q1,  # to share weights with Q1
                         game_info=self.games,  # bad, but simple (@hack)
                         player_id=1,
+                        optimizer=optimizer,
+                        grad_clip=grad_clip,
+                        learning_rate=learning_rate_sl,
                         neural_network_history=self.neural_network_history,
                         neural_network_loss=self.neural_network_loss,
                         tensorboard=self.tensorboard,
@@ -217,7 +237,7 @@ class Simulator:
                                              stack=INITIAL_MONEY,
                                              name=p_names[p_id],
                                              gamma=self.gamma,
-                                             learning_rate=self.learning_rate,
+                                             learning_freq=self.learning_freq,
                                              target_Q_update_freq=self.target_Q_update_freq,
                                              memory_rl_config=self.memory_rl_config,
                                              memory_sl_config=self.memory_sl_config,
@@ -304,7 +324,6 @@ class Simulator:
             self._handle_split()
         else:
             self._handle_no_split()
-
         # store final experience
         # KEEP TRACK OF TRANSITIONS
         last_round = get_last_round(self.actions, 0)
@@ -382,8 +401,11 @@ class Simulator:
         assert self.player.stack >= 0, self.player.stack
         assert not ((self.player.stack == 0) and not self.player.is_all_in), (self.player, self.player.is_all_in, self.actions)
 
-        self.action = self.player.play(self.board, self.pot, self.actions, self.b_round,
-                                       self.players[1 - self.to_play].stack, self.players[1 - self.to_play].side_pot, BLINDS)
+        self.action = self.player.play(self.board, self.pot,
+                                       self.actions, self.b_round,
+                                       self.players[1 - self.to_play].stack,
+                                       self.players[1 - self.to_play].side_pot,
+                                       BLINDS, self.games['#episodes'])
 
         if self.action.type == 'null':
             # this happens when a player is all-in. In this case it can no longer play
@@ -459,12 +481,19 @@ class Simulator:
             self._save_results(self.neural_network_history, self.neural_network_history_path)
             self.neural_network_history = {}
             self._save_results(self.neural_network_loss, self.neural_network_loss_path)
-            self.tensorboard.to_zip('{}_'.format(EXPERIMENT_PATH, time()))
+            cur_t = time()
+            self.tensorboard.to_zip('{}_{}'.format(EXPERIMENT_PATH, cur_t))
             self.neural_network_loss = {
                                         0: {'q': [], 'pi': []},
                                         1: {'q': [], 'pi': []}
                                        }
-
+            # save the trained model
+            for p in self.players:
+                if p.player_type == 'nfsp':
+                    q_model = p.strategy._Q.state_dict()
+                    pi_model = p.strategy._pi.state_dict()
+                    t.save(q_model, '{}q_{}.pt'.format(MODEL_SAVEPATH, cur_t))
+                    t.save(pi_model, '{}pi_{}.pt'.format(MODEL_SAVEPATH, cur_t))
             print(self.games['n'], " games over")
 
     def _send_correct_final_reward_to_tensorboard(self):

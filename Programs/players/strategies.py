@@ -147,7 +147,13 @@ class StrategyNFSP():
         self.cuda = cuda
         self.is_graph_created = False
 
-    def choose_action(self, player, board, pot, actions, b_round, opponent_stack, opponent_side_pot, blinds):
+    def choose_action(self, player, board, pot, actions, b_round, opponent_stack, opponent_side_pot,
+                      blinds, episode_idx):
+        # decay epsilon in the same way in the paper (NFSP, 2016)
+        # we use number of episodes as n
+        # the exact decay schedule was not specified but alluded to slower than sqrt
+        # so we use (n)^1/4
+        self.eps = self.eps / np.power(np.max([episode_idx, 1]), 1/4)
         if player.is_all_in:
             assert player.stack == 0
             return Action('null'), False
@@ -192,7 +198,14 @@ class StrategyNFSP():
             valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])
             # print('valid actions prob')
             # print(valid_action_probs)
-            valid_action_probs /= t.sum(valid_action_probs)
+            # @debug
+            # @hack: giving uniform prob, if probs are flat to zero
+            if not t.sum(valid_action_probs).eq(0.0):
+                valid_action_probs /= t.sum(valid_action_probs)
+            else:
+                valid_action_probs.fill_(0.1)
+                valid_action_probs /= t.sum(valid_action_probs)
+
             action = bucket_to_action(sample_action(idx, valid_action_probs.data.cpu().numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = False
         return action, self.is_Q_used
