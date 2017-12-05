@@ -21,10 +21,14 @@ from torch.autograd import Variable
 
 # paths
 SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
-GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
-PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
-NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
-NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
+GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
+PLAY_HISTORY_PATH = 'data/play_history/'
+NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
+NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
+#NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
+#NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
+#GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
+#PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 EXPERIMENT_PATH = 'data/tensorboard/'
 MODEL_SAVEPATH = 'data/neural_network_history/models/'
 
@@ -68,6 +72,7 @@ class Simulator:
                  target_Q_update_freq,
                  use_batch_norm,
                  optimizer,
+                 experiment_name,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
@@ -115,6 +120,7 @@ class Simulator:
                                     1: {'q':[]}, 'pi': []}
         # 4. tensorboard
         self.tensorboard = tensorboard
+        self.experiment_name = experiment_name
 
         # define game-level game states here
         self.new_game = True
@@ -474,15 +480,21 @@ class Simulator:
     def save_history_results(self):
         if self.games['n'] % self.log_freq == 0:
             # we save all history data here. Clear the dicts after saving them.
-            self._save_results(self.games['winnings'], self.game_score_history_path)
+            cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
+            # fix typo em
+            em = self.experiment_name
+            gh_path = '{}{}_{}.p'.format(self.game_score_history_path, em, cur_t)
+            ph_path = '{}{}_{}.p'.format(self.play_history_path, em, cur_t)
+            nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, em, cur_t)
+            nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, em, cur_t)
+            self._save_results(self.games['winnings'], gh_path)
+            self._save_results(self.play_history, ph_path)
+            self._save_results(self.neural_network_history, nnh_path)
+            self._save_results(self.neural_network_loss, nnl_path)
+            # flush the memory
             self.games['winnings'] = {}
-            self._save_results(self.play_history, self.play_history_path)
-            self.play_history = {}
-            self._save_results(self.neural_network_history, self.neural_network_history_path)
             self.neural_network_history = {}
-            self._save_results(self.neural_network_loss, self.neural_network_loss_path)
-            cur_t = time()
-            self.tensorboard.to_zip('{}_{}'.format(EXPERIMENT_PATH, cur_t))
+            self.play_history = {}
             self.neural_network_loss = {
                                         0: {'q': [], 'pi': []},
                                         1: {'q': [], 'pi': []}
@@ -492,8 +504,9 @@ class Simulator:
                 if p.player_type == 'nfsp':
                     q_model = p.strategy._Q.state_dict()
                     pi_model = p.strategy._pi.state_dict()
-                    t.save(q_model, '{}q_{}.pt'.format(MODEL_SAVEPATH, cur_t))
-                    t.save(pi_model, '{}pi_{}.pt'.format(MODEL_SAVEPATH, cur_t))
+                    t.save(q_model, '{}{}_q_{}.pt'.format(MODEL_SAVEPATH, em, cur_t))
+                    t.save(pi_model, '{}{}_pi_{}.pt'.format(MODEL_SAVEPATH, em, cur_t))
+            self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, em, cur_t))
             print(self.games['n'], " games over")
 
     def _send_correct_final_reward_to_tensorboard(self):

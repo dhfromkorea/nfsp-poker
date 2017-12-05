@@ -43,7 +43,7 @@ def get_arg_parser():
     # game/experiment
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
-    parser.add_argument('-lf', '--log_freq', default=100, type=int, dest='log_freq', help='log game results frequency')
+    parser.add_argument('-lf', '--log_freq', default=1500, type=int, dest='log_freq', help='log game results frequency')
     parser.add_argument('-ls', '--learn_start', default=2 ** 7, type=int, dest='learn_start',
                         help='starting point for training networks')
     # experience replay
@@ -86,6 +86,7 @@ def get_arg_parser():
     return parser
 
 def setup_tensorboard(name, host_name='http://localhost'):
+    name = '{}_{}'.format(name, str(time.ctime()))
     tb = CrayonClient(hostname=host_name)
     try:
         tb_experiment = tb.create_experiment(name)
@@ -137,7 +138,14 @@ if __name__ == '__main__':
     target_Q_update_freq = args.target_Q_update_freq
     use_batch_norm = args.use_batch_norm
     # TODO: make experiment_name in sync with saved_model_name
-    experiment_name = '{}_{}'.format(args.experiment_name, str(time.ctime()))
+
+    experiment_name = ''
+    for k, v in vars(args).items():
+        experiment_name += '{}-{}_'.format(k,v)
+    experiment_id = hash(experiment_name)
+    with open('data/experiment_log.txt', 'a') as f:
+        f.write('{}\n{}'.format(experiment_id, experiment_name))
+
     tb_experiment, _ = setup_tensorboard(experiment_name)
     optimizer = args.optimizer
     grad_clip = args.grad_clip
@@ -194,6 +202,7 @@ if __name__ == '__main__':
                                                           cuda=cuda,
                                                           verbose=verbose,
                                                           tensorboard=tb_experiment,
+                                                          experiment_name=experiment_id,
                                                           use_batch_norm=use_batch_norm
                                                           )
 

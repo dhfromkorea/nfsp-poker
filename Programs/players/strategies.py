@@ -157,8 +157,9 @@ class StrategyNFSP():
         if player.is_all_in:
             assert player.stack == 0
             return Action('null'), False
-        if self.eta > np.random.rand():
-            # use epsilon-greey policy
+        
+        if self.eta >= np.random.rand():
+            # use epsilon-greedy policy
             if self.verbose:
                 start = timer()
 
