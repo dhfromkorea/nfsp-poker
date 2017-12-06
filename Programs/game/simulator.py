@@ -10,12 +10,11 @@ from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
 
 from models.featurizer import FeaturizerManager
-from time import time
+import time
 import numpy as np
 import torch as t
 import pickle
 import models.q_network
-from time import time
 import os.path
 from torch.autograd import Variable
 
@@ -25,10 +24,6 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
-#NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/loss_{}.p'.format(time())
-#NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/neural_network_history_{}.p'.format(time())
-#GAME_SCORE_HISTORY_PATH = 'data/game_score_history/game_score_history_{}.p'.format(time())
-#PLAY_HISTORY_PATH = 'data/play_history/play_history_{}.p'.format(time())
 EXPERIMENT_PATH = 'data/tensorboard/'
 MODEL_SAVEPATH = 'data/neural_network_history/models/'
 
@@ -72,7 +67,9 @@ class Simulator:
                  target_Q_update_freq,
                  use_batch_norm,
                  optimizer,
-                 experiment_name,
+                 experiment_id,
+                 p1_strategy,
+                 p2_strategy,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
@@ -84,9 +81,7 @@ class Simulator:
                  grad_clip=None,
                  verbose=False,
                  cuda=False,
-                 tensorboard=None,
-                 p1_strategy='RL',
-                 p2_strategy='RL'):
+                 tensorboard=None):
         # define msc.
         self.verbose = verbose
         self.cuda = cuda
@@ -99,6 +94,8 @@ class Simulator:
         self.target_Q_update_freq = target_Q_update_freq
         self.learn_start = learn_start
         self.use_batch_norm = use_batch_norm
+        self.strategy_p1 = p1_strategy
+        self.strategy_p2 = p2_strategy
 
         # NFSP-speicfic network hyperparams
         self.etas = {0: eta_p1, 1: eta_p2}
@@ -120,7 +117,7 @@ class Simulator:
                                     1: {'q':[]}, 'pi': []}
         # 4. tensorboard
         self.tensorboard = tensorboard
-        self.experiment_name = experiment_name
+        self.experiment_id = experiment_id
 
         # define game-level game states here
         self.new_game = True
@@ -264,13 +261,13 @@ class Simulator:
         buffer_length = str(tuple([p.memory_rl._buffer.record_size for p in self.players if p.player_type == 'nfsp'] + [p.memory_sl._buffer.record_size for p in self.players if p.player_type == 'nfsp']))
 
         if self.verbose:
-            t0 = time()
+            t0 = time.time()
             print('####################'
                   'New game (%s) starts.\n'
                   'Players get cash\n'
                   'Last game lasted %.1f\n'
                   'Memory contains %s experiences\n'
-                  '####################' % (str(self.games['n']), time() - t0, buffer_length))
+                  '####################' % (str(self.games['n']), time.time() - t0, buffer_length))
         self.players[0].cash(INITIAL_MONEY)
         self.players[1].cash(INITIAL_MONEY)
 
@@ -344,7 +341,7 @@ class Simulator:
         try:
             self.update_play_history_with_final_rewards()
             if self.tensorboard is not None:
-                self._send_correct_final_reward_to_tensorboard()
+                self._send_data_to_tensorboard()
         except KeyError:
             raise KeyError
 
@@ -387,7 +384,7 @@ class Simulator:
                     # end episode
                     break
             else:
-                # DEAL REMAINING CARDS
+                # DEAL REMAINING CARS
                 for r in range(self.b_round, 4):
                     deal(self.deck, self.players, self.board, r, verbose=self.verbose)
 
@@ -478,20 +475,42 @@ class Simulator:
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
 
     def save_history_results(self):
+        # todo: winnings, episode length
+        # action type monitoring (fold, check, ...)
         if self.games['n'] % self.log_freq == 0:
             # we save all history data here. Clear the dicts after saving them.
             cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
             # fix typo em
-            em = self.experiment_name
-            gh_path = '{}{}_{}.p'.format(self.game_score_history_path, em, cur_t)
-            ph_path = '{}{}_{}.p'.format(self.play_history_path, em, cur_t)
-            nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, em, cur_t)
-            nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, em, cur_t)
+            exp_id = self.experiment_id
+            gh_path = '{}{}_{}.p'.format(self.game_score_history_path, cur_t, exp_id)
+            ph_path = '{}{}_{}.p'.format(self.play_history_path, cur_t, exp_id)
+            nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, cur_t, exp_id)
+            nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, cur_t, exp_id)
             self._save_results(self.games['winnings'], gh_path)
             self._save_results(self.play_history, ph_path)
             self._save_results(self.neural_network_history, nnh_path)
             self._save_results(self.neural_network_loss, nnl_path)
-            # flush the memory
+
+            # save the trained model
+            for p in self.players:
+                if p.player_type == 'nfsp':
+                    q_model = p.strategy._Q.state_dict()
+                    pi_model = p.strategy._pi.state_dict()
+                    t.save(q_model, '{}{}_{}_q_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id+1))
+                    t.save(pi_model, '{}{}_{}_pi_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id+1))
+
+            if self.tensorboard is not None:
+                # per log freq
+                winnings_p1 = 0
+                for res in self.games['winnings'].values():
+                    if list(res)[0] > 0:
+                        winnings_p1 += 1
+                self.tensorboard.add_scalar_value('winnings_p1', winnings_p1, time.time())
+                self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, cur_t, exp_id))
+
+            print(self.games['n'], " games played")
+
+            # flush data from the memory for gc
             self.games['winnings'] = {}
             self.neural_network_history = {}
             self.play_history = {}
@@ -499,23 +518,67 @@ class Simulator:
                                         0: {'q': [], 'pi': []},
                                         1: {'q': [], 'pi': []}
                                        }
-            # save the trained model
-            for p in self.players:
-                if p.player_type == 'nfsp':
-                    q_model = p.strategy._Q.state_dict()
-                    pi_model = p.strategy._pi.state_dict()
-                    t.save(q_model, '{}{}_q_{}.pt'.format(MODEL_SAVEPATH, em, cur_t))
-                    t.save(pi_model, '{}{}_pi_{}.pt'.format(MODEL_SAVEPATH, em, cur_t))
-            self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, em, cur_t))
-            print(self.games['n'], " games over")
 
-    def _send_correct_final_reward_to_tensorboard(self):
+    def _send_data_to_tensorboard(self):
         '''
         send only the corrected final rewards after every episode
         '''
-        t = time()
-        self.tensorboard.add_scalar_value('reward_1', self.total_reward_in_episode[0], t)
-        self.tensorboard.add_scalar_value('reward_2', self.total_reward_in_episode[1], t)
+        cur_t = time.time()
+
+        # define episode length as the # of rounds where any action was taken by player 1
+        # may not be precise, but should be approximately right
+        # episode length -> [0, 4]
+        episode_length = 0
+        num_folds = 0
+        num_calls = 0
+        num_checks = 0
+        num_all_ins = 0
+        num_bets = 0
+        num_nulls = 0
+        num_raises = 0
+        bets_p1 = 0
+        raises_p1 = 0
+        for b_round in range(4):
+            action_p1 = self.actions[b_round][0]
+            if action_p1 == []:
+                # no action recoded for this round
+                break
+            episode_length += 1
+            for a in action_p1:
+                if a.type == 'fold':
+                    num_folds += 1
+                elif a.type == 'call':
+                    num_calls += 1
+                elif a.type == 'check':
+                    num_checks += 1
+                elif a.type == 'all in':
+                    num_all_ins += 1
+                elif a.type == 'null':
+                    num_nulls += 1
+                elif a.type == 'bet':
+                    num_bets += 1
+                    bets_p1 += a.value
+                elif a.type == 'raise':
+                    num_raises += 1
+                    raises_p1 += a.value
+                else:
+                    raise Exception('unrecognized action type {}'.format(a.type))
+        num_actions = np.sum([num_folds, num_calls, num_checks, num_all_ins, num_bets, num_nulls,
+                       num_raises])
+        assert num_actions >= episode_length, "num_actions {} should be greater than or equal to episode \
+        length {}".format(num_actions, episode_length)
+        self.tensorboard.add_scalar_value('episode_length', episode_length, cur_t)
+        self.tensorboard.add_scalar_value('num_folds_per_episode_p1', num_folds, cur_t)
+        self.tensorboard.add_scalar_value('num_calls_per_episode_p1', num_calls, cur_t)
+        self.tensorboard.add_scalar_value('num_checks_per_episode_p1', num_checks, cur_t)
+        self.tensorboard.add_scalar_value('num_all_ins_per_episode_p1', num_all_ins, cur_t)
+        self.tensorboard.add_scalar_value('num_nulls_per_episode_p1', num_nulls, cur_t)
+        self.tensorboard.add_scalar_value('num_bets_per_episode_p1', num_bets, cur_t)
+        self.tensorboard.add_scalar_value('num_raises_per_episode_p1', num_raises, cur_t)
+        self.tensorboard.add_scalar_value('bets_p1', bets_p1, cur_t)
+        self.tensorboard.add_scalar_value('raises_p1', raises_p1, cur_t)
+        self.tensorboard.add_scalar_value('reward_1', self.total_reward_in_episode[0], cur_t)
+        self.tensorboard.add_scalar_value('reward_2', self.total_reward_in_episode[1], cur_t)
 
     def update_play_history_with_final_rewards(self):
         try:

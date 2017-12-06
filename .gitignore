@@ -1,5 +1,6 @@
 # any large pickled files
 **/*.p
+**/*.pt
 **/*.pkl
 **/*.zip
 **/data/hand_eval/[0-9]*/saved_models/*

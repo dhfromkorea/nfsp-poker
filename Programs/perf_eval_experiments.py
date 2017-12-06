@@ -59,21 +59,23 @@ def get_arg_parser():
                         help='number of partitions to Memory RL')
     parser.add_argument('-ts', '--total_steps', default=10 ** 9, type=int, dest='total_steps',
                         help='total steps to Memory RL')
-    # define neural network parameters here
 
+    # define neural network parameters here
+    # default values are set close to NFSP paper
+    # note there's an internal epsilon decay schedule
     parser.add_argument('-eps', '--epsilon', default=0.1, type=float, dest='eps',
                         help='eps')
     parser.add_argument('-g', '--gamma', default=0.95, type=float, dest='gamma',
                         help='gamma')
     parser.add_argument('-lr_rl', '--learning_rate_rl', default=0.001, type=float,
                         dest='learning_rate_rl', help='learning rate for memory rl')
-    parser.add_argument('-lr_sl', '--learning_rate_sl', default=0.001, type=float,
+    parser.add_argument('-lr_sl', '--learning_rate_sl', default=0.0001, type=float,
                         dest='learning_rate_sl', help='learning rate for memory sl')
     parser.add_argument('-tf', '--target_Q_update_freq', default=100, type=int,
                         dest='target_Q_update_freq', help='update target Q every X number of episodes')
-    parser.add_argument('-ep1', '--eta_p1', default=0.75, type=float, dest='eta_p1',
+    parser.add_argument('-ep1', '--eta_p1', default=0.1, type=float, dest='eta_p1',
                         help='eta for player 1')
-    parser.add_argument('-ep2', '--eta_p2', default=0.5, type=float, dest='eta_p2',
+    parser.add_argument('-ep2', '--eta_p2', default=0.1, type=float, dest='eta_p2',
                         help='eta for player 2')
     # flipped logic but let's keep this for now
     parser.add_argument('-bn', '--use_batch_norm', action='store_true', dest='use_batch_norm')
@@ -81,19 +83,20 @@ def get_arg_parser():
     parser.add_argument('-opt', '--optimizer', default='adam', type=str, help="optimizer to use",
                         dest="optimizer")
     parser.add_argument('-gc', '--gradient_clip', default=None, type=float, help="max l2 gradient norm", dest="grad_clip")
+    # default is eery episode
     parser.add_argument('-lrnf', '--learning_frequency', default=1, type=int, dest='learning_freq',
                         help='performing backprop every how many episodes')
     return parser
 
-def setup_tensorboard(name, host_name='http://localhost'):
-    name = '{}_{}'.format(name, str(time.ctime()))
+def setup_tensorboard(exp_id, cur_t, host_name='http://localhost'):
+    exp_filename = '{}_{}'.format(cur_t, exp_id)
     tb = CrayonClient(hostname=host_name)
     try:
-        tb_experiment = tb.create_experiment(name)
-    except ValueError:
+        tb_experiment = tb.create_experiment(exp_filename)
+    except:
         # flush the data anew
-        tb.remove_experiment(name)
-        tb_experiment = tb.create_experiment(name)
+        tb.remove_experiment(exp_filename)
+        tb_experiment = tb.create_experiment(exp_filename)
     return tb_experiment, tb
 
 def remove_all_experiments(host_name='http://localhost'):
@@ -137,21 +140,20 @@ if __name__ == '__main__':
     learning_rate_sl = args.learning_rate_sl
     target_Q_update_freq = args.target_Q_update_freq
     use_batch_norm = args.use_batch_norm
-    # TODO: make experiment_name in sync with saved_model_name
-
-    experiment_name = ''
-    for k, v in vars(args).items():
-        experiment_name += '{}-{}_'.format(k,v)
-    experiment_id = hash(experiment_name)
-    with open('data/experiment_log.txt', 'a') as f:
-        f.write('{}\n{}'.format(experiment_id, experiment_name))
-
-    tb_experiment, _ = setup_tensorboard(experiment_name)
     optimizer = args.optimizer
     grad_clip = args.grad_clip
     learning_freq = args.learning_freq
     strategy1 = args.strategy1
     strategy2 = args.strategy2
+
+    experiment_name = ''
+    for k, v in vars(args).items():
+        experiment_name += '{}:{}_'.format(k,v)
+    experiment_id =  '{}vs{}_{}'.format(strategy1, strategy2, hash(experiment_name)).lower()
+    cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
+    with open('data/experiment_log.txt', 'a') as f:
+        f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
+    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t)
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
@@ -202,7 +204,7 @@ if __name__ == '__main__':
                                                           cuda=cuda,
                                                           verbose=verbose,
                                                           tensorboard=tb_experiment,
-                                                          experiment_name=experiment_id,
+                                                          experiment_id=experiment_id,
                                                           use_batch_norm=use_batch_norm
                                                           )
 
