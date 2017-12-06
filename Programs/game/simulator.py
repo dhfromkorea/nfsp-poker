@@ -476,20 +476,6 @@ class Simulator:
 
 
     def save_history_results(self):
-        if self.tensorboard is not None:
-            winnings_p1 = 0
-            winnings_p2 = 0
-            for res in self.games['winnings'].values():
-                if list(res)[0] == INITIAL_MONEY * len(self.players):
-                    winnings_p1 += 1
-                elif list(res)[1] == INITIAL_MONEY * len(self.players):
-                    winnings_p2 += 1
-                else:
-                    raise Exception('game seems to violate the zero-sum principle')
-            self.tensorboard.add_scalar_value('winnings_p1', winnings_p1, time.time())
-            self.tensorboard.add_scalar_value('winnings_p2', winnings_p2, time.time())
-
-
         if self.games['n'] % self.log_freq == 0:
             # we save all history data here. Clear the dicts after saving them.
             cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
@@ -514,6 +500,7 @@ class Simulator:
 
             if self.tensorboard is not None:
                 self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, cur_t, exp_id))
+                self._send_winnings_data_to_tensorboard()
 
             print(self.games['n'], " games played")
 
@@ -532,60 +519,71 @@ class Simulator:
         '''
         cur_t = time.time()
 
-        # define episode length as the # of rounds where any action was taken by player 1
-        # may not be precise, but should be approximately right
-        # episode length -> [0, 4]
-        episode_length = 0
-        num_folds = 0
-        num_calls = 0
-        num_checks = 0
-        num_all_ins = 0
-        num_bets = 0
-        num_nulls = 0
-        num_raises = 0
-        bets_p1 = 0
-        raises_p1 = 0
-        for b_round in range(4):
-            action_p1 = self.actions[b_round][0]
-            if action_p1 == []:
-                # no action recoded for this round
-                break
-            episode_length += 1
-            for a in action_p1:
-                if a.type == 'fold':
-                    num_folds += 1
-                elif a.type == 'call':
-                    num_calls += 1
-                elif a.type == 'check':
-                    num_checks += 1
-                elif a.type == 'all in':
-                    num_all_ins += 1
-                elif a.type == 'null':
-                    num_nulls += 1
-                elif a.type == 'bet':
-                    num_bets += 1
-                    bets_p1 += a.value
-                elif a.type == 'raise':
-                    num_raises += 1
-                    raises_p1 += a.value
-                else:
-                    raise Exception('unrecognized action type {}'.format(a.type))
-        num_actions = np.sum([num_folds, num_calls, num_checks, num_all_ins, num_bets, num_nulls,
-                       num_raises])
-        assert num_actions >= episode_length, "num_actions {} should be greater than or equal to episode \
-        length {}".format(num_actions, episode_length)
-        self.tensorboard.add_scalar_value('episode_length', episode_length, cur_t)
-        self.tensorboard.add_scalar_value('num_folds_per_episode_p1', num_folds, cur_t)
-        self.tensorboard.add_scalar_value('num_calls_per_episode_p1', num_calls, cur_t)
-        self.tensorboard.add_scalar_value('num_checks_per_episode_p1', num_checks, cur_t)
-        self.tensorboard.add_scalar_value('num_all_ins_per_episode_p1', num_all_ins, cur_t)
-        self.tensorboard.add_scalar_value('num_nulls_per_episode_p1', num_nulls, cur_t)
-        self.tensorboard.add_scalar_value('num_bets_per_episode_p1', num_bets, cur_t)
-        self.tensorboard.add_scalar_value('num_raises_per_episode_p1', num_raises, cur_t)
-        self.tensorboard.add_scalar_value('bets_p1', bets_p1, cur_t)
-        self.tensorboard.add_scalar_value('raises_p1', raises_p1, cur_t)
-        self.tensorboard.add_scalar_value('reward_1', self.total_reward_in_episode[0], cur_t)
-        self.tensorboard.add_scalar_value('reward_2', self.total_reward_in_episode[1], cur_t)
+        # define episode length as the # of rounds where any action is taken by any player
+        # currently there seems to be a bug where
+        # self.actions[1] for p1 is [] and p2 [some action] which should not happen
+
+        for p in self.players:
+            episode_length = 0
+            num_folds = 0
+            num_calls = 0
+            num_checks = 0
+            num_all_ins = 0
+            num_bets = 0
+            num_nulls = 0
+            num_raises = 0
+            all_in_amounts = 0
+            bet_amounts = 0
+            raise_amounts = 0
+            for b_round in range(4):
+                action = self.actions[b_round][p.id]
+                if action == []:
+                    # no action recoded for this round
+                    break
+                episode_length += 1
+                for a in action:
+                    if a.type == 'fold':
+                        num_folds += 1
+                    elif a.type == 'call':
+                        num_calls += 1
+                    elif a.type == 'check':
+                        num_checks += 1
+                    elif a.type == 'all in':
+                        num_all_ins += 1
+                        all_in_amounts += a.value
+                    elif a.type == 'null':
+                        num_nulls += 1
+                    elif a.type == 'bet':
+                        num_bets += 1
+                        bet_amounts += a.value
+                    elif a.type == 'raise':
+                        num_raises += 1
+                        raise_amounts += a.value
+                    else:
+                        raise Exception('unrecognized action type {}'.format(a.type))
+            num_actions = np.sum([num_folds, num_calls, num_checks, num_all_ins, num_bets, num_nulls,
+                           num_raises])
+            assert num_actions >= episode_length, "num_actions {} should be greater than or equal to episode \
+            length {}".format(num_actions, episode_length)
+            self.tensorboard.add_scalar_value('p{}_episode_length'.format(p.id+1), episode_length, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_folds_per_episode'.format(p.id+1), num_folds, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_calls_per_episode'.format(p.id+1), num_calls, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_checks_per_episode'.format(p.id+1), num_checks, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_all_ins_per_episode'.format(p.id+1), num_all_ins, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_nulls_per_episode'.format(p.id+1), num_nulls, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_bets_per_episode'.format(p.id+1), num_bets, cur_t)
+            self.tensorboard.add_scalar_value('p{}_num_raises_per_episode'.format(p.id+1), num_raises, cur_t)
+            self.tensorboard.add_scalar_value('p{}_all_in_amounts'.format(p.id+1), all_in_amounts, cur_t)
+            self.tensorboard.add_scalar_value('p{}_bet_amounts'.format(p.id+1), bet_amounts, cur_t)
+            self.tensorboard.add_scalar_value('p{}_raise_amounts'.format(p.id+1), raise_amounts, cur_t)
+            self.tensorboard.add_scalar_value('p{}_reward'.format(p.id+1), self.total_reward_in_episode[p.id], cur_t)
+
+    def _send_winnings_data_to_tensorboard(self):
+        # logging the last winning results every log frequency
+        for res in self.games['winnings'].values():
+            for p in self.players:
+                did_win = int(list(res)[p.id] == INITIAL_MONEY * len(self.players))
+                self.tensorboard.add_scalar_value('p{}_winnings'.format(p.id+1), did_win, time.time())
 
     def update_play_history_with_final_rewards(self):
         try:

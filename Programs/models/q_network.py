@@ -282,7 +282,7 @@ class QNetwork(t.nn.Module):
         raw_loss = loss.data.cpu().numpy()[0]
         # todo: refactor the hard coded name
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('q_mse_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(raw_loss), time.time())
         self.neural_network_loss[self.player_id]['q'].append(raw_loss)
 
         loss.backward()
@@ -412,7 +412,7 @@ class PiNetwork(t.nn.Module):
         raw_loss = loss.data.cpu().numpy()[0]
         self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('pi_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
         # @debug @hack
@@ -558,7 +558,7 @@ class QNetworkBN(t.nn.Module):
         self.neural_network_loss[self.player_id]['q'].append(raw_loss)
         # todo: refactor the hard coded name
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('q_bn_mse_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
 
         loss.backward()
@@ -667,7 +667,7 @@ class PiNetworkBN(t.nn.Module):
         raw_loss = loss.data.cpu().numpy()[0]
         self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('pi_bn_ce_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
         self.optim.step()
