@@ -474,9 +474,22 @@ class Simulator:
     def update_winnings(self):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
 
+
     def save_history_results(self):
-        # todo: winnings, episode length
-        # action type monitoring (fold, check, ...)
+        if self.tensorboard is not None:
+            winnings_p1 = 0
+            winnings_p2 = 0
+            for res in self.games['winnings'].values():
+                if list(res)[0] == INITIAL_MONEY * len(self.players):
+                    winnings_p1 += 1
+                elif list(res)[1] == INITIAL_MONEY * len(self.players):
+                    winnings_p2 += 1
+                else:
+                    raise Exception('game seems to violate the zero-sum principle')
+            self.tensorboard.add_scalar_value('winnings_p1', winnings_p1, time.time())
+            self.tensorboard.add_scalar_value('winnings_p2', winnings_p2, time.time())
+
+
         if self.games['n'] % self.log_freq == 0:
             # we save all history data here. Clear the dicts after saving them.
             cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
@@ -500,12 +513,6 @@ class Simulator:
                     t.save(pi_model, '{}{}_{}_pi_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id+1))
 
             if self.tensorboard is not None:
-                # per log freq
-                winnings_p1 = 0
-                for res in self.games['winnings'].values():
-                    if list(res)[0] > 0:
-                        winnings_p1 += 1
-                self.tensorboard.add_scalar_value('winnings_p1', winnings_p1, time.time())
                 self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, cur_t, exp_id))
 
             print(self.games['n'], " games played")
