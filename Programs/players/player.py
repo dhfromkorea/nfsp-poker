@@ -192,7 +192,6 @@ class NeuralFictitiousPlayer(Player):
         imp_weights = variable(imp_weights, cuda=self.cuda)
         rewards = variable(exps[2].astype(np.float32), cuda=self.cuda)
         next_state_vars = [variable(s, cuda=self.cuda) for s in exps[3]]
-        import pdb;pdb.set_trace()
 
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]

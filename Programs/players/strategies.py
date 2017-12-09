@@ -157,7 +157,7 @@ class StrategyNFSP():
         if player.is_all_in:
             assert player.stack == 0
             return Action('null'), False
-        
+
         if self.eta >= np.random.rand():
             # use epsilon-greedy policy
             if self.verbose:
@@ -201,11 +201,10 @@ class StrategyNFSP():
             # print(valid_action_probs)
             # @debug
             # @hack: giving uniform prob, if probs are flat to zero
-            if not t.sum(valid_action_probs).eq(0.0):
-                valid_action_probs /= t.sum(valid_action_probs)
-            else:
-                valid_action_probs.fill_(0.1)
-                valid_action_probs /= t.sum(valid_action_probs)
+            #if not t.sum(valid_action_probs).eq(0.0):
+            valid_action_probs /= t.sum(valid_action_probs)
+            #else:
+            #valid_action_probs.fill_(0.1)
 
             action = bucket_to_action(sample_action(idx, valid_action_probs.data.cpu().numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = False

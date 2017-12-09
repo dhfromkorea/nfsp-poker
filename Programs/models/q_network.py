@@ -251,6 +251,11 @@ class QNetwork(t.nn.Module):
         dropout.training = self.training
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        hand_strength = float(HS.data.cpu().numpy().flatten()[0])
+
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('p{}_hand_strength'.format(self.player_id + 1),
+                                              hand_strength, time.time())
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(dropout(self.fc27(situation_with_opponent)))
@@ -377,6 +382,10 @@ class PiNetwork(t.nn.Module):
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
+        hand_strength = float(HS.data.cpu().numpy().flatten()[0])
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('p{}_hand_strength'.format(self.player_id + 1),
+                                              hand_strength, time.time())
         situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))
@@ -529,6 +538,9 @@ class QNetworkBN(t.nn.Module):
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
+        
+        if self.tensorboard is not None:
+            self.tensorboard.add_scalar_value('p{}_hand_strength'.format(self.player_id + 1), float(HS.data.cpu().numpy().flatten()[0]), time.time())
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))
         q_values = self.bn28(self.fc28(q_values))
@@ -631,7 +643,6 @@ class PiNetworkBN(t.nn.Module):
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
-
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = leakyrelu(self.bn27(self.fc27(situation_with_opponent)))

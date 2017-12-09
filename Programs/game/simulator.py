@@ -333,11 +333,16 @@ class Simulator:
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if self.players[0].player_type == 'nfsp':
                 self.players[0].remember(self.experiences[0])
+                #if self.tensorboard is not None:
+                    #self._send_buffer_data_to_tensorboard(0, self.experiences[0])
+
         last_round = get_last_round(self.actions, 1)
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if len(self.actions[last_round][1]) > 0:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
+                    #if self.tensorboard is not None:
+                        #self._send_buffer_data_to_tensorboard(1, self.experiences[1])
         try:
             self.update_play_history_with_final_rewards()
             if self.tensorboard is not None:
@@ -439,10 +444,19 @@ class Simulator:
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
         if self.player.player_type == 'nfsp':
-            self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board,
-                                                                    self.pot, self.dealer, self.actions, BLINDS[1],
-                                                                    self.global_step, self.b_round)
+            self.experiences[self.player.id] = self.make_experience(self.player,
+                                                                    self.action,
+                                                                    self.new_game,
+                                                                    self.board,
+                                                                    self.pot,
+                                                                    self.dealer,
+                                                                    self.actions,
+                                                                    BLINDS[1],
+                                                                    self.global_step,
+                                                                    self.b_round)
             self.player.remember(self.experiences[self.player.id])
+            #if self.tensorboard is not None:
+                #self._send_buffer_data_to_tensorboard(self.player.id, self.experiences[self.player.id])
 
         # UPDATE STATE DEPENDING ON THE ACTION YOU TOOK
         # Sanity check: it should be impossible to bet/call/all in with value 0
@@ -473,7 +487,6 @@ class Simulator:
 
     def update_winnings(self):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
-
 
     def save_history_results(self):
         if self.games['n'] % self.log_freq == 0:
@@ -522,7 +535,6 @@ class Simulator:
         # define episode length as the # of rounds where any action is taken by any player
         # currently there seems to be a bug where
         # self.actions[1] for p1 is [] and p2 [some action] which should not happen
-
         for p in self.players:
             episode_length = 0
             num_folds = 0
@@ -584,6 +596,15 @@ class Simulator:
             for p in self.players:
                 did_win = int(list(res)[p.id] == INITIAL_MONEY * len(self.players))
                 self.tensorboard.add_scalar_value('p{}_winnings'.format(p.id+1), did_win, time.time())
+
+    def _send_buffer_data_to_tensorboard(self, pid, exp):
+        '''
+        tracking whether experience stored was a showdown transition
+        an approximate way since I could not figure out a clean way to
+        keep track of this.
+        '''
+        # self.tensorboard.add_scalar_value('p{}_showdown_transitions'.format(pid+1), 0 , time.time())
+        pass
 
     def update_play_history_with_final_rewards(self):
         try:
@@ -811,6 +832,17 @@ class Simulator:
         reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
+        '''
+        tracking whether experience stored was a showdown transition
+        an approximate way since I could not figure out a clean way to
+        keep track of this.
+        '''
+        #final_round = 3
+        #final_actions = self.actions[final_round][player.id]
+        #is_showdown = 0
+        #if final_actions != []:
+            # final action taken but no fold
+            #is_showdown = int(np.sum([fa.type == 'fold' for fa in final_actions]) == 0)
         # we need to inform replay manager of some extra stuff
         experience = {'s': state_,
                       'a': action_,
@@ -820,6 +852,7 @@ class Simulator:
                       'is_new_game': self.new_game,
                       'is_terminal': False,
                       'final_reward': 0
+                      #'is_showdown': is_showdown
                       }
         return experience
 
