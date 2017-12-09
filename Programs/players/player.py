@@ -186,6 +186,7 @@ class NeuralFictitiousPlayer(Player):
         # gamma = Variable(t.Tensor([self.gamma]).float(), requires_grad=False)
         gamma = variable([self.gamma], cuda=self.cuda)
         exps, imp_weights, ids = self.memory_rl.sample(global_step)
+        # how many of the samples in a batch are showdowns or all-ins
         state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
         action_vars = variable(exps[1], cuda=self.cuda)
         imp_weights = variable(imp_weights, cuda=self.cuda)

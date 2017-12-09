@@ -17,7 +17,7 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
-
+HOSTNAME = '192.168.99.100'
 
 def load_results(path):
     with open(path, 'rb') as f:
@@ -89,7 +89,6 @@ def get_arg_parser():
                         help='performing backprop every how many episodes')
     return parser
 
-
 def setup_tensorboard(exp_id, cur_t, host_name='http://192.168.99.100', port=8889):
     exp_filename = '{}_{}'.format(cur_t, exp_id)
     tb = CrayonClient(hostname=host_name, port=port)
@@ -157,7 +156,7 @@ if __name__ == '__main__':
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
     with open('data/experiment_log.txt', 'a') as f:
         f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
-    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t)
+    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, HOSTNAME, 8889)
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
@@ -178,39 +177,39 @@ if __name__ == '__main__':
             'batch_size': batch_size_sl
         }
         results_dict[strategy1 + 'vs' + strategy2] = eu.conduct_games(strategy1, strategy2,
-                                                                      # 2 ** 7
-                                                                      learn_start=learn_start,
-                                                                      # 10000
-                                                                      num_games=num_games,
-                                                                      # 100
-                                                                      mov_avg_window=mov_avg_window,
-                                                                      # 100
-                                                                      log_freq=log_freq,
-                                                                      # default for eta_p1 =0.5
-                                                                      eta_p1=eta_p1,
-                                                                      # default for eta_p1 =0.5
-                                                                      eta_p2=eta_p2,
-                                                                      # default 0.1
-                                                                      eps=eps,
-                                                                      # default 0.95
-                                                                      gamma=gamma,
-                                                                      # default 1e-3
-                                                                      learning_rate_rl=learning_rate_rl,
-                                                                      learning_rate_sl=learning_rate_sl,
-                                                                      optimizer=optimizer,
-                                                                      grad_clip=grad_clip,
-                                                                      learning_freq=learning_freq,
-                                                                      # default 100 episodes
-                                                                      target_Q_update_freq=target_Q_update_freq,
-                                                                      memory_rl_config=memory_rl_config,
-                                                                      memory_sl_config=memory_sl_config,
-                                                                      # default false
-                                                                      cuda=cuda,
-                                                                      verbose=verbose,
-                                                                      tensorboard=tb_experiment,
-                                                                      experiment_id=experiment_id,
-                                                                      use_batch_norm=use_batch_norm
-                                                                      )
+                                                          # 2 ** 7
+                                                          learn_start=learn_start,
+                                                          # 10000
+                                                          num_games=num_games,
+                                                          # 100
+                                                          mov_avg_window=mov_avg_window,
+                                                          # 100
+                                                          log_freq=log_freq,
+                                                          # default for eta_p1 =0.5
+                                                          eta_p1=eta_p1,
+                                                          # default for eta_p1 =0.5
+                                                          eta_p2=eta_p2,
+                                                          # default 0.1
+                                                          eps=eps,
+                                                          # default 0.95
+                                                          gamma=gamma,
+                                                          # default 1e-3
+                                                          learning_rate_rl=learning_rate_rl,
+                                                          learning_rate_sl=learning_rate_sl,
+                                                          optimizer=optimizer,
+                                                          grad_clip=grad_clip,
+                                                          learning_freq=learning_freq,
+                                                          # default 100 episodes
+                                                          target_Q_update_freq=target_Q_update_freq,
+                                                          memory_rl_config=memory_rl_config,
+                                                          memory_sl_config=memory_sl_config,
+                                                          # default false
+                                                          cuda=cuda,
+                                                          verbose=verbose,
+                                                          tensorboard=tb_experiment,
+                                                          experiment_id=experiment_id,
+                                                          use_batch_norm=use_batch_norm
+                                                          )
 
     # # pick the latest created file == results just created from the simulation above
     # game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
