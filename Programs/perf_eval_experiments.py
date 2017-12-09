@@ -17,7 +17,6 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
-HOSTNAME = '192.168.99.100'
 
 def load_results(path):
     with open(path, 'rb') as f:
@@ -87,11 +86,15 @@ def get_arg_parser():
     # default is eery episode
     parser.add_argument('-lrnf', '--learning_frequency', default=1, type=int, dest='learning_freq',
                         help='performing backprop every how many episodes')
+    parser.add_argument('-tbhn', '--tensorboard_hostname', default='http://192.168.99.100',
+                        type=str, dest='tb_hostname', help='hostname for tensorboard')
+    parser.add_argument('-tbp', '--tensorboard_port', default='8889', type=str, dest='tb_port',
+                        help='port for tensorboard')
     return parser
 
-def setup_tensorboard(exp_id, cur_t, host_name='http://192.168.99.100', port=8889):
+def setup_tensorboard(exp_id, cur_t, hostname, port):
     exp_filename = '{}_{}'.format(cur_t, exp_id)
-    tb = CrayonClient(hostname=host_name, port=port)
+    tb = CrayonClient(hostname=hostname, port=port)
     try:
         tb_experiment = tb.create_experiment(exp_filename)
     except:
@@ -101,11 +104,11 @@ def setup_tensorboard(exp_id, cur_t, host_name='http://192.168.99.100', port=888
     return tb_experiment, tb
 
 
-def remove_all_experiments(host_name='http://192.168.99.100', port=8889):
+def remove_all_experiments(hostname, port):
     '''
     DANGER: don't use this, unless you're sure
     '''
-    tb = CrayonClient(hostname=host_name, port=port)
+    tb = CrayonClient(hostname=hostname, port=port)
     tb.remove_all_experiments()
 
 
@@ -148,6 +151,8 @@ if __name__ == '__main__':
     learning_freq = args.learning_freq
     strategy1 = args.strategy1
     strategy2 = args.strategy2
+    tb_hostname = args.tb_hostname
+    tb_port = args.tb_port
 
     experiment_name = ''
     for k, v in vars(args).items():
@@ -156,10 +161,9 @@ if __name__ == '__main__':
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
     with open('data/experiment_log.txt', 'a') as f:
         f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
-    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, HOSTNAME, 8889)
+    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, tb_hostname, tb_port)
 
     results_dict = {}
-    # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)
     if not skip_simulation:
         # sometimes we want to skip simulation and view only the latest simulation results
         memory_rl_config = {
@@ -211,20 +215,20 @@ if __name__ == '__main__':
                                                           use_batch_norm=use_batch_norm
                                                           )
 
-    # # pick the latest created file == results just created from the simulation above
-    # game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
-    # play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
-    # neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
-    # neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
+    # pick the latest created file == results just created from the simulation above
+    game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
+    play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
+    neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
+    neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
 
-    # # eu.plot_results(results_dict)
-    # print('game history')
-    # print(load_results(game_score_history_paths))
-    # print('play history')
-    # for k, v in load_results(play_history_paths).items():
-    #     print(k)
-    #     print(v)
-    #     print('')
-    # print('neural network history')
-    # print(load_results(neural_network_history_paths))
-    # print(load_results(neural_network_loss_paths))
+    # eu.plot_results(results_dict)
+    print('game history')
+    print(load_results(game_score_history_paths))
+    print('play history')
+    for k, v in load_results(play_history_paths).items():
+        print(k)
+        print(v)
+        print('')
+    print('neural network history')
+    print(load_results(neural_network_history_paths))
+    print(load_results(neural_network_loss_paths))
