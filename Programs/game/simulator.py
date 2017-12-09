@@ -114,7 +114,7 @@ class Simulator:
         self.neural_network_history = {}
         self.neural_network_loss_path = neural_network_loss_path
         self.neural_network_loss = {0: {'q': [], 'pi': []},
-                                    1: {'q':[]}, 'pi': []}
+                                    1: {'q': []}, 'pi': []}
         # 4. tensorboard
         self.tensorboard = tensorboard
         self.experiment_id = experiment_id
@@ -136,57 +136,56 @@ class Simulator:
             Q = QNetwork
             Pi = PiNetwork
 
-
         Q0 = Q(n_actions=NUM_ACTIONS,
-                      hidden_dim=NUM_HIDDEN_LAYERS,
-                      featurizer=featurizer,
-                      game_info=self.games,  # bad, but simple (@hack)
-                      learning_rate=learning_rate_rl,
-                      player_id=0,
-                      optimizer=optimizer,
-                      grad_clip=grad_clip,
-                      neural_network_history=self.neural_network_history,
-                      neural_network_loss=self.neural_network_loss,
-                      tensorboard=self.tensorboard,
-                      cuda=cuda)
+               hidden_dim=NUM_HIDDEN_LAYERS,
+               featurizer=featurizer,
+               game_info=self.games,  # bad, but simple (@hack)
+               learning_rate=learning_rate_rl,
+               player_id=0,
+               optimizer=optimizer,
+               grad_clip=grad_clip,
+               neural_network_history=self.neural_network_history,
+               neural_network_loss=self.neural_network_loss,
+               tensorboard=self.tensorboard,
+               cuda=cuda)
         Q1 = Q(n_actions=NUM_ACTIONS,
-                      hidden_dim=NUM_HIDDEN_LAYERS,
-                      featurizer=featurizer,
-                      game_info=self.games,  # bad, but simple (@hack)
-                      player_id=1,
-                      optimizer=optimizer,
-                      grad_clip=grad_clip,
-                      learning_rate=learning_rate_rl,
-                      neural_network_history=self.neural_network_history,
-                      neural_network_loss=self.neural_network_loss,
-                      tensorboard=self.tensorboard,
-                      cuda=cuda)
+               hidden_dim=NUM_HIDDEN_LAYERS,
+               featurizer=featurizer,
+               game_info=self.games,  # bad, but simple (@hack)
+               player_id=1,
+               optimizer=optimizer,
+               grad_clip=grad_clip,
+               learning_rate=learning_rate_rl,
+               neural_network_history=self.neural_network_history,
+               neural_network_loss=self.neural_network_loss,
+               tensorboard=self.tensorboard,
+               cuda=cuda)
         Pi0 = Pi(n_actions=NUM_ACTIONS,
-                        hidden_dim=NUM_HIDDEN_LAYERS,
-                        featurizer=featurizer,
-                        q_network=Q0,  # to share weights
-                        game_info=self.games,  # bad, but simple (@hack)
-                        player_id=0,
-                        optimizer=optimizer,
-                        grad_clip=grad_clip,
-                        learning_rate=learning_rate_sl,
-                        neural_network_history=self.neural_network_history,
-                        neural_network_loss=self.neural_network_loss,
-                        tensorboard=self.tensorboard,
-                        cuda=cuda)
+                 hidden_dim=NUM_HIDDEN_LAYERS,
+                 featurizer=featurizer,
+                 q_network=Q0,  # to share weights
+                 game_info=self.games,  # bad, but simple (@hack)
+                 player_id=0,
+                 optimizer=optimizer,
+                 grad_clip=grad_clip,
+                 learning_rate=learning_rate_sl,
+                 neural_network_history=self.neural_network_history,
+                 neural_network_loss=self.neural_network_loss,
+                 tensorboard=self.tensorboard,
+                 cuda=cuda)
         Pi1 = Pi(n_actions=NUM_ACTIONS,
-                        hidden_dim=NUM_HIDDEN_LAYERS,
-                        featurizer=featurizer,
-                        q_network=Q1,  # to share weights with Q1
-                        game_info=self.games,  # bad, but simple (@hack)
-                        player_id=1,
-                        optimizer=optimizer,
-                        grad_clip=grad_clip,
-                        learning_rate=learning_rate_sl,
-                        neural_network_history=self.neural_network_history,
-                        neural_network_loss=self.neural_network_loss,
-                        tensorboard=self.tensorboard,
-                        cuda=cuda)
+                 hidden_dim=NUM_HIDDEN_LAYERS,
+                 featurizer=featurizer,
+                 q_network=Q1,  # to share weights with Q1
+                 game_info=self.games,  # bad, but simple (@hack)
+                 player_id=1,
+                 optimizer=optimizer,
+                 grad_clip=grad_clip,
+                 learning_rate=learning_rate_sl,
+                 neural_network_history=self.neural_network_history,
+                 neural_network_loss=self.neural_network_loss,
+                 tensorboard=self.tensorboard,
+                 cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
         self.players = self._generate_player_instances(p1_strategy, p2_strategy,
@@ -349,7 +348,6 @@ class Simulator:
             if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
 
-
         self._reset_variables()
         # TODO: remove this! temp variable
         self.is_new_game = True
@@ -496,8 +494,8 @@ class Simulator:
                 if p.player_type == 'nfsp':
                     q_model = p.strategy._Q.state_dict()
                     pi_model = p.strategy._pi.state_dict()
-                    t.save(q_model, '{}{}_{}_q_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id+1))
-                    t.save(pi_model, '{}{}_{}_pi_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id+1))
+                    t.save(q_model, '{}{}_{}_q_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1))
+                    t.save(pi_model, '{}{}_{}_pi_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1))
 
             if self.tensorboard is not None:
                 # per log freq
@@ -515,9 +513,9 @@ class Simulator:
             self.neural_network_history = {}
             self.play_history = {}
             self.neural_network_loss = {
-                                        0: {'q': [], 'pi': []},
-                                        1: {'q': [], 'pi': []}
-                                       }
+                0: {'q': [], 'pi': []},
+                1: {'q': [], 'pi': []}
+            }
 
     def _send_data_to_tensorboard(self):
         '''
@@ -564,7 +562,7 @@ class Simulator:
                 else:
                     raise Exception('unrecognized action type {}'.format(a.type))
         num_actions = np.sum([num_folds, num_calls, num_checks, num_all_ins, num_bets, num_nulls,
-                       num_raises])
+                              num_raises])
         assert num_actions >= episode_length, "num_actions {} should be greater than or equal to episode \
         length {}".format(num_actions, episode_length)
         self.tensorboard.add_scalar_value('episode_length', episode_length, cur_t)
@@ -625,7 +623,7 @@ class Simulator:
         self.players[1].stack += pot_1
         self.players[0].contribution_in_this_pot = 0
         self.players[1].contribution_in_this_pot = 0
-        self.total_reward_in_episode = {0:0, 1:0}
+        self.total_reward_in_episode = {0: 0, 1: 0}
 
         # RL : update the memory with the amount you won
         self.experiences[0]['final_reward'] = pot_0
@@ -652,7 +650,7 @@ class Simulator:
         if self.players[self.winner].stack > 0:
             self.players[self.winner].stack += self.pot
             self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
-            self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
+            self.total_reward_in_episode[1 - self.winner] -= self.players[1 - self.winner].contribution_in_this_pot
 
         # if the winner is all in, it takes only min(what it put in the pot*2, pot)
         else:
@@ -660,7 +658,7 @@ class Simulator:
             if s_pot[self.winner] * 2 > self.pot:
                 self.players[self.winner].stack += self.pot
                 self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
-                self.total_reward_in_episode[1-self.winner] -= self.players[1-self.winner].contribution_in_this_pot
+                self.total_reward_in_episode[1 - self.winner] -= self.players[1 - self.winner].contribution_in_this_pot
 
             else:
                 self.players[self.winner].stack += 2 * s_pot[self.winner]

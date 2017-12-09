@@ -143,7 +143,7 @@ class SharedNetwork(t.nn.Module):
         self.fc21 = fc(5 * 6 * 2 + hdim, hdim)
         self.fc22 = fc(5 * 6 * 2 + hdim, hdim)
         self.fc23 = fc(hdim, hdim)
-        self.fc24 = fc(5, hdim)
+        self.fc24 = fc(6, hdim)
         self.fc25 = fc(3 * hdim, hdim)
         self.fc26 = fc(hdim, hdim)
 
@@ -155,7 +155,7 @@ class SharedNetwork(t.nn.Module):
         if cuda:
             self.cuda()
 
-    def forward(self, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+    def forward(self, HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
@@ -167,7 +167,7 @@ class SharedNetwork(t.nn.Module):
         plays = selu(dropout(self.fc23(processed_preflop + processed_flop + processed_turn + processed_river)))
 
         # add pot, dealer, blinds, dealer, stacks
-        pbds = selu(dropout(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer], -1))))
+        pbds = selu(dropout(self.fc24(t.cat([pot, stack, opponent_stack, big_blind, dealer, HS], -1))))
 
         # USE ALL INFORMATION (CARDS/ACTIONS/MISC) TO PREDICT THE Q VALUES
         situation_with_opponent = selu(dropout(self.fc25(t.cat([plays, pbds, cards_features], -1))))
@@ -234,7 +234,6 @@ class QNetwork(t.nn.Module):
         else:
             raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
 
-
         # to initialize network on gpu
         if cuda:
             self.cuda()
@@ -252,7 +251,7 @@ class QNetwork(t.nn.Module):
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
-        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+        situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(dropout(self.fc27(situation_with_opponent)))
         q_values = self.fc28(dropout(q_values))
 
@@ -360,7 +359,6 @@ class PiNetwork(t.nn.Module):
         else:
             raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
 
-
         if cuda:
             self.cuda()
 
@@ -377,7 +375,7 @@ class PiNetwork(t.nn.Module):
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
-        situation_with_opponent = self.shared_network.forward(cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
+        situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))
         pi_values = softmax(dropout(self.fc28(pi_values)))
@@ -479,6 +477,7 @@ class QNetworkBN(t.nn.Module):
                  neural_network_loss,
                  learning_rate,
                  optimizer,
+                 grad_clip=None,
                  tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
@@ -544,8 +543,6 @@ class QNetworkBN(t.nn.Module):
 
     def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
-        # TODO: support batch forward?
-        # not sure if it's supported as it's written now
         all_Q_preds = self.forward(*states)
         actions_ = (bucket_encode_actions(actions, cuda=self.is_cuda) + 1).long()
         Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
@@ -559,7 +556,6 @@ class QNetworkBN(t.nn.Module):
         # todo: refactor the hard coded name
         if self.tensorboard is not None:
             self.tensorboard.add_scalar_value('q_bn_mse_loss_p{}'.format(self.player_id + 1), float(raw_loss), time.time())
-
 
         loss.backward()
         # update weights
@@ -589,6 +585,7 @@ class PiNetworkBN(t.nn.Module):
                  learning_rate,
                  optimizer,
                  tensorboard=None,
+                 grad_clip=None,
                  shared_network=None,
                  q_network=None,
                  cuda=False):

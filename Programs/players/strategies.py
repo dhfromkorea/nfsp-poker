@@ -201,7 +201,7 @@ class StrategyNFSP():
             # print(valid_action_probs)
             # @debug
             # @hack: giving uniform prob, if probs are flat to zero
-            if not t.sum(valid_action_probs).eq(0.0):
+            if not t.sum(valid_action_probs).data.numpy()[0] == 0:
                 valid_action_probs /= t.sum(valid_action_probs)
             else:
                 valid_action_probs.fill_(0.1)

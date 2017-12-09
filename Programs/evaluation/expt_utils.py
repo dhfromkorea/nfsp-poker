@@ -12,6 +12,7 @@ Say a game with SB = 5$ and BB = 10$. Winning 1$ in a game  would amount to a BB
 # Compares your AI agent with a random agent and plots wins.
 from game import simulator
 from players import *
+import torch as t
 from game.config import BLINDS
 import matplotlib.pyplot as plt
 from random import randint
@@ -20,6 +21,7 @@ import numpy as np
 
 def moving_avg(x, pid, window):
     return [np.mean(x[k:k + window, pid]) for k in range(len(x) - window)]
+
 
 def conduct_games(p1_strategy,
                   p2_strategy,
@@ -47,8 +49,7 @@ def conduct_games(p1_strategy,
                   cuda=False,
                   verbose=False,
                   tensorboard=None,
-                 ):
-
+                  ):
     game_sim = simulator.Simulator(p1_strategy=p1_strategy,
                                    p2_strategy=p2_strategy,
                                    learn_start=learn_start,

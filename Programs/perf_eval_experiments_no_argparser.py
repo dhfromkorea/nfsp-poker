@@ -26,19 +26,19 @@ if __name__ == '__main__':
     cuda = False
     verbose = False
     log_freq = 1000
-    num_games = 200000
-    mov_avg_window = 500
-    learn_start = 2**7
-    batch_size = 2**5
-    buffer_size = 2**17
-    num_partitions = 2**11
-    total_steps = 10**9
-    eta_p1 = 1.
-    eta_p2 = .5
+    num_games = 1000
+    mov_avg_window = 100
+    learn_start = 2 ** 8
+    batch_size = 2 ** 5
+    buffer_size = 2 ** 10
+    num_partitions = 2 ** 4
+    total_steps = 10 ** 9
+    eta_p1 = .1
+    eta_p2 = .1
     skip_simulation = False
     eps = .05
     gamma = 1.
-    learning_rate = 1e-4
+    learning_rate = 1e-3
     target_Q_update_freq = 200
 
     results_dict = {}
@@ -60,49 +60,43 @@ if __name__ == '__main__':
             'size': 2 ** 15,
             'batch_size': 2 ** 6
         }
-        results_dict['NFSP vs random'] = eu.conduct_games('NFSP', 'mirror',
-                                                          # 2 ** 7
-                                                          learn_start=learn_start,
-                                                          # 10000
-                                                          num_games=num_games,
-                                                          # 100
-                                                          mov_avg_window=mov_avg_window,
-                                                          # 100
-                                                          log_freq=log_freq,
-                                                          # default for eta_p1 =0.5
-                                                          eta_p1=eta_p1,
-                                                          # default for eta_p1 =0.5
-                                                          eta_p2=eta_p2,
-                                                          # default 0.1
-                                                          eps=eps,
-                                                          # default 0.95
-                                                          gamma=gamma,
-                                                          # default 1e-3
-                                                          learning_rate=learning_rate,
-                                                          # default 100 episodes
-                                                          target_Q_update_freq=target_Q_update_freq,
-                                                          memory_rl_config=memory_rl_config,
-                                                          memory_sl_config=memory_sl_config,
-                                                          # default false
-                                                          cuda=cuda,
-                                                          # default false
-                                                          verbose=verbose
-                                                          )
+        results_dict['NFSP vs NFSP'] = eu.conduct_games('NFSP', 'NFSP',
+                                                        learn_start=learn_start,
+                                                        num_games=num_games,
+                                                        mov_avg_window=mov_avg_window,
+                                                        log_freq=log_freq,
+                                                        eta_p1=eta_p1,
+                                                        eta_p2=eta_p2,
+                                                        eps=eps,
+                                                        gamma=gamma,
+                                                        learning_rate_rl=learning_rate,
+                                                        learning_rate_sl=learning_rate,
+                                                        target_Q_update_freq=target_Q_update_freq,
+                                                        memory_rl_config=memory_rl_config,
+                                                        memory_sl_config=memory_sl_config,
+                                                        cuda=cuda,
+                                                        verbose=verbose,
+                                                        learning_freq=1,
+                                                        use_batch_norm=True,
+                                                        optimizer='adam',
+                                                        grad_clip=None,
+                                                        experiment_id=0
+                                                        )
 
-    # pick the latest created file == results just created from the simulation above
-    game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
-    play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
-    neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
-    neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
-
-    # eu.plot_results(results_dict)
-    print('game history')
-    print(load_results(game_score_history_paths))
-    print('play history')
-    for k, v in load_results(play_history_paths).items():
-        print(k)
-        print(v)
-        print('')
-    print('neural network history')
-    print(load_results(neural_network_history_paths))
-    print(load_results(neural_network_loss_paths))
+        # pick the latest created file == results just created from the simulation above
+        # game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
+        # play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
+        # neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
+        # neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
+        #
+        # # eu.plot_results(results_dict)
+        # print('game history')
+        # print(load_results(game_score_history_paths))
+        # print('play history')
+        # for k, v in load_results(play_history_paths).items():
+        #     print(k)
+        #     print(v)
+        #     print('')
+        # print('neural network history')
+        # print(load_results(neural_network_history_paths))
+        # print(load_results(neural_network_loss_paths))
