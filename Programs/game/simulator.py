@@ -645,8 +645,8 @@ class Simulator:
         self.total_reward_in_episode = {0: 0, 1: 0}
 
         # RL : update the memory with the amount you won
-        self.experiences[0]['final_reward'] = pot_0
-        self.experiences[1]['final_reward'] = pot_1
+        self.experiences[0]['final_reward'] = 0  # the profit is 0 because you get back all what you put in the pot
+        self.experiences[1]['final_reward'] = 0
         self.split = False
 
         self.experiences[0]['is_terminal'] = True
@@ -819,8 +819,9 @@ class Simulator:
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0) * (b_round == 0))
-        reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
+        reward_ = 0  # terminal rewards only !!!!!!!!!
+        # should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0) * (b_round == 0))
+        # reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
         '''
