@@ -205,6 +205,7 @@ class StrategyNFSP():
             valid_action_probs /= t.sum(valid_action_probs)
             #else:
             #valid_action_probs.fill_(0.1)
+#            if not t.sum(valid_action_probs).eq(0.0):
 
             action = bucket_to_action(sample_action(idx, valid_action_probs.data.cpu().numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = False

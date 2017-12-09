@@ -17,7 +17,7 @@ GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
 NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
-
+HOSTNAME = '192.168.99.100'
 
 def load_results(path):
     with open(path, 'rb') as f:
@@ -88,9 +88,9 @@ def get_arg_parser():
                         help='performing backprop every how many episodes')
     return parser
 
-def setup_tensorboard(exp_id, cur_t, host_name='http://localhost'):
+def setup_tensorboard(exp_id, cur_t, host_name='http://localhost', port="8889"):
     exp_filename = '{}_{}'.format(cur_t, exp_id)
-    tb = CrayonClient(hostname=host_name)
+    tb = CrayonClient(hostname=host_name, port=port)
     try:
         tb_experiment = tb.create_experiment(exp_filename)
     except:
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
     with open('data/experiment_log.txt', 'a') as f:
         f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
-    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t)
+    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, HOSTNAME, 8889)
 
     results_dict = {}
     # results_dict['Random vs Random'] = eu.conduct_games('random', 'random', num_games = 100, mov_avg_window = 5)

@@ -7,7 +7,7 @@
 **/data/hand_eval/[0-9]*/img/*
 # jupyernotebook stuff
 .ipynb_checkpoints
-
+**/*experiment_log.txt
 # dh personal file
 **/to.do
 # Byte-compiled / optimized / DLL files
