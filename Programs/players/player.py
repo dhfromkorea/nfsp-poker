@@ -2,9 +2,10 @@ from torch.autograd import Variable
 import torch as t
 import numpy as np
 from timeit import default_timer as timer
+import time
 
 from experience_replay.experience_replay import ReplayBufferManager
-from game.game_utils import Action
+from game.game_utils import Action, bucket_encode_actions
 from game.utils import variable
 from game.state import build_state, create_state_variable_batch, create_state_vars_batch
 from game.action import create_action_variable_batch
@@ -85,8 +86,7 @@ class NeuralFictitiousPlayer(Player):
     NFSP
     '''
 
-    def __init__(self,
-                 pid,
+    def __init__(self, pid,
                  strategy,
                  stack,
                  name,
@@ -96,6 +96,7 @@ class NeuralFictitiousPlayer(Player):
                  target_Q_update_freq,
                  memory_rl_config={},
                  memory_sl_config={},
+                 tensorboard=None,
                  is_training=True,
                  verbose=False,
                  cuda=False):
@@ -123,6 +124,7 @@ class NeuralFictitiousPlayer(Player):
         self.gamma = gamma
         self.target_update = target_Q_update_freq
         self.learning_freq = learning_freq
+        self.tensorboard = tensorboard
 
         # logically they should fall under each player
         # so we can do player.model.Q, player.model.pi
@@ -193,6 +195,17 @@ class NeuralFictitiousPlayer(Player):
         imp_weights = variable(imp_weights, cuda=self.cuda)
         rewards = variable(exps[2].astype(np.float32), cuda=self.cuda)
         next_state_vars = [variable(s, cuda=self.cuda) for s in exps[3]]
+        state_hashes = exps[5]
+
+        if self.tensorboard is not None:
+            actions = bucket_encode_actions(action_vars, cuda=self.cuda)
+            for a in actions.data.cpu().numpy():
+                self.tensorboard.add_scalar_value('M_RL_sampled_actions', int(a), time.time())
+            for r in exps[2]:
+                self.tensorboard.add_scalar_value('M_RL_sampled_rewards', int(r), time.time())
+            for h in state_hashes:
+                self.tensorboard.add_scalar_value('M_RL_sampled_states', int(h), time.time())
+
 
         if self.is_training:
             Q_targets = rewards + gamma * t.max(self.strategy._target_Q.forward(*next_state_vars), 1)[0]
@@ -213,6 +226,14 @@ class NeuralFictitiousPlayer(Player):
             state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
             # 4 x 11 each column is torch variable
             action_vars = variable(exps[1], cuda=self.cuda)
+            state_hashes = exps[2]
+            if self.tensorboard is not None:
+                actions= bucket_encode_actions(action_vars, cuda=self.cuda)
+                for a in actions.data.cpu().numpy():
+                    self.tensorboard.add_scalar_value('M_SL_sampled_actions', int(a), time.time())
+                for h in state_hashes:
+                    self.tensorboard.add_scalar_value('M_SL_sampled_states', int(h), time.time())
+
             if self.verbose:
                 start = timer()
             self.strategy._pi.learn(state_vars, action_vars)
