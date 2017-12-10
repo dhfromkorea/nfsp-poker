@@ -153,7 +153,9 @@ if __name__ == '__main__':
     tb_port = args.tb_port
 
     experiment_name = ''
+    print('running tests with the following setup')
     for k, v in vars(args).items():
+        print('{}: {}'.format(k, v))
         experiment_name += '{}:{}_'.format(k, v)
     experiment_id = '{}vs{}_{}'.format(strategy1, strategy2, hash(experiment_name)).lower()
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
