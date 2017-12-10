@@ -136,9 +136,10 @@ class NeuralFictitiousPlayer(Player):
         """
         TODO: check the output action dimension
         """
-        action, self.is_Q_used = self.strategy.choose_action(self, board, pot, actions, b_round,
+        action, self.is_Q_used = self.strategy.choose_action(self, board, pot,
+                                                             actions, b_round,
                                                              opponent_stack, opponent_side_pot,
-                                                             blinds, episode_idx)
+                                                             blinds, episode_idx, for_play=True)
 
         return action
 

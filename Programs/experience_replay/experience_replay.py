@@ -18,15 +18,6 @@ class ReplayBufferManager:
             raise Exception('Unsupported Memory Type', target)
 
         self.target = target
-        # apply constraints on the config here
-        if 'batch_size' in config:
-            assert config['batch_size'] < learn_start, "You can't start learning before having \
-            batch_size samples"
-        if 'partiion_num' in config:
-            assert config['batch_size'] < config['partition_num'], "You can't have partition \
-            number smaller than batch size"
-            assert config['partition_num'] < learn_start, "You can't start learning before \
-            having partition_num samples"
 
         if self.target == 'rl':
             self.config = {'size': config.get('size', 2 ** 17),  # 2**10
@@ -41,6 +32,16 @@ class ReplayBufferManager:
             dist_index = self.config['learn_start'] / self.config['size'] * self.config['partition_num']
             assert self.config['learn_start'] * self.config['partition_num'] >= self.config['size'], "Memory RL intialization is wrong"
             assert math.floor(dist_index) == math.ceil(dist_index), "Memory_RL initialization should be consistent with the assertion here"
+
+            # apply constraints on the config here
+            if 'batch_size' in config:
+                assert config['batch_size'] < learn_start, "learn start {} should be greater than \
+                        batch size {}".format(learn_start, config['batch_size'])
+            if 'partiion_num' in config:
+                assert config['batch_size'] < config['partition_num'], "You can't have partition \
+                number smaller than batch size"
+                assert config['partition_num'] < learn_start, "You can't start learning before \
+                having partition_num samples"
             if verbose:
                 print('target: RL ', config)
             self._buffer = RankExperienceReplay(self.config)
@@ -66,7 +67,7 @@ class ReplayBufferManager:
     def make_exp_tuple(experience):
         return (experience['s'], experience['a'],
                 experience['r'], experience['next_s'],
-                experience['t'])
+                experience['t'], experience['is_showdown'])
 
     def store_experience(self, experience):
         if self.target == 'sl':

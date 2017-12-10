@@ -119,6 +119,13 @@ class Simulator:
         self.tensorboard = tensorboard
         self.experiment_id = experiment_id
 
+        # debugging utility variables
+
+        self.last_game_start_time = None
+        self.last_episode_start_time = None
+        self.game_play_speeds = []
+        self.episode_play_speeds = []
+
         # define game-level game states here
         self.new_game = True
         self.global_step = 0
@@ -250,12 +257,14 @@ class Simulator:
                 p_id += 1
         return players
 
+
     def _prepare_new_game(self):
         '''
         if new game -> initialize
         '''
         # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
         self.games['n'] += 1
+        self._log_game_play_speed()
         # buffer_length = buffer_rl.size
         buffer_length = str(tuple([p.memory_rl._buffer.record_size for p in self.players if p.player_type == 'nfsp'] + [p.memory_sl._buffer.record_size for p in self.players if p.player_type == 'nfsp']))
 
@@ -332,16 +341,16 @@ class Simulator:
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if self.players[0].player_type == 'nfsp':
                 self.players[0].remember(self.experiences[0])
-                #if self.tensorboard is not None:
-                    #self._send_buffer_data_to_tensorboard(0, self.experiences[0])
+                if self.tensorboard is not None:
+                    self._send_buffer_data_to_tensorboard(0, self.experiences[0])
 
         last_round = get_last_round(self.actions, 1)
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if len(self.actions[last_round][1]) > 0:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
-                    #if self.tensorboard is not None:
-                        #self._send_buffer_data_to_tensorboard(1, self.experiences[1])
+                    if self.tensorboard is not None:
+                        self._send_buffer_data_to_tensorboard(1, self.experiences[1])
         try:
             self.update_play_history_with_final_rewards()
             if self.tensorboard is not None:
@@ -353,6 +362,7 @@ class Simulator:
             if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
 
+        self._log_episode_play_speed()
         self._reset_variables()
         # TODO: remove this! temp variable
         self.is_new_game = True
@@ -446,8 +456,8 @@ class Simulator:
                                                                     self.pot, self.dealer, self.actions, BLINDS[1],
                                                                     self.global_step, self.b_round)
             self.player.remember(self.experiences[self.player.id])
-            #if self.tensorboard is not None:
-                #self._send_buffer_data_to_tensorboard(self.player.id, self.experiences[self.player.id])
+            if self.tensorboard is not None:
+                self._send_buffer_data_to_tensorboard(self.player.id, self.experiences[self.player.id])
 
         # UPDATE STATE DEPENDING ON THE ACTION YOU TOOK
         # Sanity check: it should be impossible to bet/call/all in with value 0
@@ -516,6 +526,7 @@ class Simulator:
                 0: {'q': [], 'pi': []},
                 1: {'q': [], 'pi': []}
             }
+            print('game results logged')
 
     def _send_data_to_tensorboard(self):
         '''
@@ -594,8 +605,15 @@ class Simulator:
         an approximate way since I could not figure out a clean way to
         keep track of this.
         '''
-        # self.tensorboard.add_scalar_value('p{}_showdown_transitions'.format(pid+1), 0 , time.time())
-        pass
+        #import pdb;pdb.set_trace()
+        #print(self.actions)
+        #print('')
+        #print('br', self.b_round)
+        #print('a', exp['a'])
+        #print('r', exp['r'])
+        #print('final_reward', exp['final_reward'])
+        #print('')
+        self.tensorboard.add_scalar_value('p{}_showdown_transitions'.format(pid+1), exp['is_showdown'], time.time())
 
     def update_play_history_with_final_rewards(self):
         try:
@@ -647,6 +665,9 @@ class Simulator:
         # RL : update the memory with the amount you won
         self.experiences[0]['final_reward'] = pot_0
         self.experiences[1]['final_reward'] = pot_1
+        # @debug sync reward also with final_reward
+        self.experiences[0]['r'] = pot_0
+        self.experiences[1]['r'] = pot_1
         self.split = False
 
         self.experiences[0]['is_terminal'] = True
@@ -689,9 +710,13 @@ class Simulator:
         if self.players[self.winner].player_type == 'nfsp':
             if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
                 self.experiences[self.winner]['final_reward'] = self.total_reward_in_episode[self.winner]
+                # @debug
+                self.experiences[self.winner]['r'] = self.total_reward_in_episode[self.winner]
         if self.players[1 - self.winner].player_type == 'nfsp':
             if not self.players[1 - self.winner].memory_rl.is_last_step_buffer_empty:
                 self.experiences[1 - self.winner]['final_reward'] = self.total_reward_in_episode[1 - self.winner]
+                # @debug
+                self.experiences[1 - self.winner]['r'] = self.total_reward_in_episode[1 - self.winner]
 
         self.experiences[0]['is_terminal'] = True
         self.experiences[1]['is_terminal'] = True
@@ -824,17 +849,17 @@ class Simulator:
         step_ = global_step
 
         '''
-        tracking whether experience stored was a showdown transition
-        an approximate way since I could not figure out a clean way to
-        keep track of this.
+        a clumsy way to detect showdown transitions
+        it clearly misses out some scenarios
         '''
-        #final_round = 3
-        #final_actions = self.actions[final_round][player.id]
-        #is_showdown = 0
-        #if final_actions != []:
-            # final action taken but no fold
-            #is_showdown = int(np.sum([fa.type == 'fold' for fa in final_actions]) == 0)
-        # we need to inform replay manager of some extra stuff
+
+        is_showdown = int(False)
+        last_round = get_last_round(self.actions, player.id)
+        if last_round != -1:
+            last_actions = self.actions[last_round][player.id]
+            # if the last of the last actions is not fold
+            is_showdown = int(last_actions[-1].type != 'fold')
+            #is_showdown = int(np.all([a.type != 'fold' for a in last_actions]))
         experience = {'s': state_,
                       'a': action_,
                       'r': reward_,
@@ -842,8 +867,8 @@ class Simulator:
                       't': step_,
                       'is_new_game': self.new_game,
                       'is_terminal': False,
-                      'final_reward': 0
-                      #'is_showdown': is_showdown
+                      'final_reward': 0,
+                      'is_showdown': is_showdown
                       }
         return experience
 
@@ -855,6 +880,27 @@ class Simulator:
                't': self.global_step,
                'is_new_game': self.new_game,
                'is_terminal': False,
-               'final_reward': 0
+               'final_reward': 0,
+                'is_showdown': 0
                }
         return exp
+
+    def _log_game_play_speed(self):
+        if self.last_game_start_time is None:
+            self.last_game_start_time = time.time()
+        else:
+            game_delta = time.time() - self.last_game_start_time
+            self.game_play_speeds.append(game_delta)
+            self.last_game_start_time = time.time()
+            if self.games['n'] % 50 == 0:
+                print('seconds per game play: {}'.format(np.mean(self.game_play_speeds[-50:])))
+
+    def _log_episode_play_speed(self):
+        if self.last_episode_start_time is None:
+            self.last_episode_start_time = time.time()
+        else:
+            episode_delta = time.time() - self.last_episode_start_time
+            self.episode_play_speeds.append(episode_delta)
+            self.last_episode_start_time = time.time()
+            if self.games['#episodes'] % 50 == 0:
+                print('seconds per episode play: {}'.format(np.mean(self.episode_play_speeds[-50:])))

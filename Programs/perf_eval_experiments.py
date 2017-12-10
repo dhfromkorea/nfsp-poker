@@ -23,7 +23,6 @@ def load_results(path):
         data = pickle.load(f)
     return data
 
-
 def get_arg_parser():
     parser = argparse.ArgumentParser(description='process configuration vars')
     # dev level
@@ -43,7 +42,7 @@ def get_arg_parser():
     # game/experiment
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
-    parser.add_argument('-lf', '--log_freq', default=1500, type=int, dest='log_freq', help='log game results frequency')
+    parser.add_argument('-lf', '--log_freq', default=1000, type=int, dest='log_freq', help='log game results frequency per game')
     parser.add_argument('-ls', '--learn_start', default=2 ** 7, type=int, dest='learn_start',
                         help='starting point for training networks')
     # experience replay
@@ -102,7 +101,6 @@ def setup_tensorboard(exp_id, cur_t, hostname, port):
         tb.remove_experiment(exp_filename)
         tb_experiment = tb.create_experiment(exp_filename)
     return tb_experiment, tb
-
 
 def remove_all_experiments(hostname, port):
     '''

@@ -245,16 +245,19 @@ class QNetwork(t.nn.Module):
         self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
-    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
+                flop_plays, turn_plays, river_plays, for_play=False):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
-        hand_strength = float(HS.data.cpu().numpy().flatten()[0])
 
-        if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_hand_strength'.format(self.player_id + 1),
-                                              hand_strength, time.time())
+        if for_play:
+            # if forward was used during play (not training)
+            if self.tensorboard is not None:
+                hand_strength = float(HS.data.cpu().numpy().flatten()[0])
+                self.tensorboard.add_scalar_value('p{}_hand_strength_q(play)'.format(self.player_id + 1),
+                                                  hand_strength, time.time())
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(dropout(self.fc27(situation_with_opponent)))
@@ -374,16 +377,19 @@ class PiNetwork(t.nn.Module):
         self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
-    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
+    def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
+                flop_plays, turn_plays, river_plays, for_play=False):
         dropout = AlphaDropout(.1)
         dropout.training = self.training
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
-        hand_strength = float(HS.data.cpu().numpy().flatten()[0])
-        if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_hand_strength'.format(self.player_id + 1),
-                                              hand_strength, time.time())
+        if for_play:
+            # if forward was used during play (not training)
+            if self.tensorboard is not None:
+                hand_strength = float(HS.data.cpu().numpy().flatten()[0])
+                self.tensorboard.add_scalar_value('p{}_hand_strength_pi(play)'.format(self.player_id + 1),
+                                                  hand_strength, time.time())
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))
