@@ -265,7 +265,8 @@ class Simulator:
         '''
         # at the beginning of a whole new game (one of the player lost or it is the first), all start with the same amounts of money again
         self.games['n'] += 1
-        self._log_game_play_speed()
+        if self.verbose:
+            self._log_game_play_speed()
         # buffer_length = buffer_rl.size
         buffer_length = str(tuple([p.memory_rl._buffer.record_size for p in self.players if p.player_type == 'nfsp'] + [p.memory_sl._buffer.record_size for p in self.players if p.player_type == 'nfsp']))
 
@@ -367,7 +368,8 @@ class Simulator:
             if p.player_type == 'nfsp':
                 p.learn(self.global_step, self.games['#episodes'])
 
-        self._log_episode_play_speed()
+        if self.verbose:
+            self._log_episode_play_speed()
         self._reset_variables()
         # TODO: remove this! temp variable
         self.is_new_game = True
