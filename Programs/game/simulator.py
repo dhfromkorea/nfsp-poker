@@ -677,26 +677,26 @@ class Simulator:
 
     def _handle_no_split(self):
         """Note that this function actually updates self.experiences with the final rewards and next state"""
-        # if the winner isn't all in, it takes everything
-        self.total_reward_in_episode = {0: 0, 1: 0}
-        if self.players[self.winner].stack > 0:
+        s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
+        # there are 3 cases:
+        # - the winner put exactly the same amount in the pot as the loser.
+        #       In that case, the reward for winner is (=profit) is the pot/2, or pot - contribution
+        #       Reward for loser is -contribution
+        # - the winner put strictly more
+        #       The reward is pot - contribution (same as 1st case, so that they can be merged in a single case)
+        #       Reward for loser is - contribution
+        # - the winner put strictly less
+        #       The reward for the winner is 2*contribution
+        #       Reward for loser is pot - 2*opp_contribution - contribution
+        if s_pot[self.winner] * 2 >= self.pot:  # if winner contributed at least to 50% of the pot, it takes all
             self.players[self.winner].stack += self.pot
             self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
             self.total_reward_in_episode[1 - self.winner] -= self.players[1 - self.winner].contribution_in_this_pot
-
-        # if the winner is all in, it takes only min(what it put in the pot*2, pot)
-        else:
-            s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
-            if s_pot[self.winner] * 2 > self.pot:
-                self.players[self.winner].stack += self.pot
-                self.total_reward_in_episode[self.winner] += self.pot - self.players[self.winner].contribution_in_this_pot
-                self.total_reward_in_episode[1 - self.winner] -= self.players[1 - self.winner].contribution_in_this_pot
-
-            else:
-                self.players[self.winner].stack += 2 * s_pot[self.winner]
-                self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
-                self.total_reward_in_episode[self.winner] += 2 * s_pot[self.winner] - self.players[self.winner].contribution_in_this_pot
-                self.total_reward_in_episode[1 - self.winner] += self.pot - 2 * s_pot[self.winner] - self.players[1 - self.winner].contribution_in_this_pot
+        else:  # if winner contributed to less than 50% of the pot, it gets 2x its contribution
+            self.players[self.winner].stack += 2 * s_pot[self.winner]
+            self.players[1 - self.winner].stack += self.pot - 2 * s_pot[self.winner]
+            self.total_reward_in_episode[self.winner] += 2 * s_pot[self.winner] - self.players[self.winner].contribution_in_this_pot
+            self.total_reward_in_episode[1 - self.winner] += self.pot - 2 * s_pot[self.winner] - self.players[1 - self.winner].contribution_in_this_pot
 
         # RL
         if self.players[self.winner].player_type == 'nfsp':
