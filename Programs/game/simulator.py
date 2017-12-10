@@ -252,6 +252,7 @@ class Simulator:
                                              memory_sl_config=self.memory_sl_config,
                                              learn_start=self.learn_start,
                                              verbose=self.verbose,
+                                             tensorboard=self.tensorboard,
                                              cuda=self.cuda)
                 players.append(nfp)
                 p_id += 1
@@ -328,8 +329,15 @@ class Simulator:
         # WINNER GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
+        showdown_occured = 0
         if not self.fold_occured:
             self._showdown()
+            showdown_occured = 1
+
+        # show down happened, we send data
+        if self.tensorboard is not None:
+            self._send_showdown_data_to_tensorboard(showdown_occured)
+
         # these two clauses update the `s`, `is_terminal` and `final_reward` of self.experiences[0/1]
         if self.split:
             self._handle_split()
@@ -341,16 +349,13 @@ class Simulator:
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if self.players[0].player_type == 'nfsp':
                 self.players[0].remember(self.experiences[0])
-                if self.tensorboard is not None:
-                    self._send_buffer_data_to_tensorboard(0, self.experiences[0])
 
         last_round = get_last_round(self.actions, 1)
         if last_round > -1:  # in that case you didnt play and was allin because of the blinds
             if len(self.actions[last_round][1]) > 0:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
-                    if self.tensorboard is not None:
-                        self._send_buffer_data_to_tensorboard(1, self.experiences[1])
+
         try:
             self.update_play_history_with_final_rewards()
             if self.tensorboard is not None:
@@ -456,8 +461,6 @@ class Simulator:
                                                                     self.pot, self.dealer, self.actions, BLINDS[1],
                                                                     self.global_step, self.b_round)
             self.player.remember(self.experiences[self.player.id])
-            if self.tensorboard is not None:
-                self._send_buffer_data_to_tensorboard(self.player.id, self.experiences[self.player.id])
 
         # UPDATE STATE DEPENDING ON THE ACTION YOU TOOK
         # Sanity check: it should be impossible to bet/call/all in with value 0
@@ -599,21 +602,13 @@ class Simulator:
                 did_win = int(list(res)[p.id] == INITIAL_MONEY * len(self.players))
                 self.tensorboard.add_scalar_value('p{}_winnings'.format(p.id+1), did_win, time.time())
 
-    def _send_buffer_data_to_tensorboard(self, pid, exp):
+    def _send_showdown_data_to_tensorboard(self, showdown_occurred):
         '''
-        tracking whether experience stored was a showdown transition
-        an approximate way since I could not figure out a clean way to
-        keep track of this.
+        checks if showdown happened in this episode
+
+        warning: may not include all showdown cases
         '''
-        #import pdb;pdb.set_trace()
-        #print(self.actions)
-        #print('')
-        #print('br', self.b_round)
-        #print('a', exp['a'])
-        #print('r', exp['r'])
-        #print('final_reward', exp['final_reward'])
-        #print('')
-        self.tensorboard.add_scalar_value('p{}_showdown_transitions'.format(pid+1), exp['is_showdown'], time.time())
+        self.tensorboard.add_scalar_value('is_showdown_per_episode', showdown_occurred, time.time())
 
     def update_play_history_with_final_rewards(self):
         try:
@@ -663,11 +658,8 @@ class Simulator:
         self.total_reward_in_episode = {0: 0, 1: 0}
 
         # RL : update the memory with the amount you won
-        self.experiences[0]['final_reward'] = pot_0
-        self.experiences[1]['final_reward'] = pot_1
-        # @debug sync reward also with final_reward
-        self.experiences[0]['r'] = pot_0
-        self.experiences[1]['r'] = pot_1
+        self.experiences[0]['final_reward'] = 0  # the profit is 0 because you get back all what you put in the pot
+        self.experiences[1]['final_reward'] = 0
         self.split = False
 
         self.experiences[0]['is_terminal'] = True
@@ -710,13 +702,9 @@ class Simulator:
         if self.players[self.winner].player_type == 'nfsp':
             if not self.players[self.winner].memory_rl.is_last_step_buffer_empty:
                 self.experiences[self.winner]['final_reward'] = self.total_reward_in_episode[self.winner]
-                # @debug
-                self.experiences[self.winner]['r'] = self.total_reward_in_episode[self.winner]
         if self.players[1 - self.winner].player_type == 'nfsp':
             if not self.players[1 - self.winner].memory_rl.is_last_step_buffer_empty:
                 self.experiences[1 - self.winner]['final_reward'] = self.total_reward_in_episode[1 - self.winner]
-                # @debug
-                self.experiences[1 - self.winner]['r'] = self.total_reward_in_episode[1 - self.winner]
 
         self.experiences[0]['is_terminal'] = True
         self.experiences[1]['is_terminal'] = True
@@ -844,8 +832,9 @@ class Simulator:
         state_ = build_state(player, board, pot, actions, opponent_stack, big_blind, as_variable=False)
 
         action_ = action_to_array(action)
-        should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0) * (b_round == 0))
-        reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
+        reward_ = 0  # terminal rewards only !!!!!!!!!
+        # should_blinds_be_added_to_the_action_value = int((len(actions[0][player.id]) == 0) * (b_round == 0))
+        # reward_ = -action.total - should_blinds_be_added_to_the_action_value * ((dealer == player.id) * big_blind / 2 + (dealer != player.id) * big_blind)
         step_ = global_step
 
         '''
@@ -853,13 +842,6 @@ class Simulator:
         it clearly misses out some scenarios
         '''
 
-        is_showdown = int(False)
-        last_round = get_last_round(self.actions, player.id)
-        if last_round != -1:
-            last_actions = self.actions[last_round][player.id]
-            # if the last of the last actions is not fold
-            is_showdown = int(last_actions[-1].type != 'fold')
-            #is_showdown = int(np.all([a.type != 'fold' for a in last_actions]))
         experience = {'s': state_,
                       'a': action_,
                       'r': reward_,
@@ -867,8 +849,7 @@ class Simulator:
                       't': step_,
                       'is_new_game': self.new_game,
                       'is_terminal': False,
-                      'final_reward': 0,
-                      'is_showdown': is_showdown
+                      'final_reward': 0
                       }
         return experience
 
@@ -880,8 +861,7 @@ class Simulator:
                't': self.global_step,
                'is_new_game': self.new_game,
                'is_terminal': False,
-               'final_reward': 0,
-                'is_showdown': 0
+               'final_reward': 0
                }
         return exp
 
