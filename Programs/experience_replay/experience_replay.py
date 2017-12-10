@@ -4,7 +4,7 @@ from experience_replay.reservoir import ReservoirExperienceReplay
 import numpy as np
 import math
 import pprint as pp
-import xxhash
+#import xxhash
 
 
 class ReplayBufferManager:
@@ -64,7 +64,7 @@ class ReplayBufferManager:
 
         self.batch_size = config.get('batch_size', 64)
         self._last_step_buffer = None
-        self.h = xxhash.xxh32()
+       # self.h = xxhash.xxh32()
 
     @staticmethod
     def make_exp_tuple(experience):
@@ -161,23 +161,23 @@ class ReplayBufferManager:
             rewards = exps[:, 2]
             next_states = exps[:, 3]
             time_steps = exps[:, 4]
-            state_hashes = []
+#            state_hashes = []
 
             state_batch = [[] for _ in range(num_features)]
             for s in states:
                 # store hahes of states for debugging
                 # hash hand, board, pot, stack, opponent stack
                 # big blind dealer
-                self.h.update(s[0])
-                self.h.update(s[1])
-                self.h.update(s[2])
-                self.h.update(s[3])
-                self.h.update(s[4])
-                self.h.update(s[5])
-                self.h.update(s[6])
-                d = self.h.intdigest()
-                state_hashes.append(d)
-                self.h.reset()
+#                self.h.update(s[0])
+#                self.h.update(s[1])
+#                self.h.update(s[2])
+#                self.h.update(s[3])
+#                self.h.update(s[4])
+#                self.h.update(s[5])
+#                self.h.update(s[6])
+#                d = self.h.intdigest()
+#                state_hashes.append(d)
+#                self.h.reset()
                 for i, feature in enumerate(s):
                     state_batch[i].append(feature)
             state_batch = [np.concatenate(s) for s in state_batch]
@@ -193,32 +193,32 @@ class ReplayBufferManager:
             exps_batch.append(rewards)
             exps_batch.append(next_state_batch)
             exps_batch.append(time_steps)
-            exps_batch.append(state_hashes)
+            #exps_batch.append(state_hashes)
 
         elif self.target == 'sl':
             states = [e[0] for e in exps]
             actions = [e[1] for e in exps]
-            state_hashes = []
+#            state_hashes = []
 
             state_batch = [[] for _ in range(num_features)]
             for s in states:
                 # store hahes of states for debugging
-                self.h.update(s[0])
-                self.h.update(s[1])
-                self.h.update(s[2])
-                self.h.update(s[3])
-                self.h.update(s[4])
-                self.h.update(s[5])
-                self.h.update(s[6])
-                d = self.h.intdigest()
-                state_hashes.append(d)
-                self.h.reset()
+#                self.h.update(s[0])
+#                self.h.update(s[1])
+#                self.h.update(s[2])
+#                self.h.update(s[3])
+#                self.h.update(s[4])
+#                self.h.update(s[5])
+#                self.h.update(s[6])
+#                d = self.h.intdigest()
+#                state_hashes.append(d)
+#                self.h.reset()
                 for i, feature in enumerate(s):
                     state_batch[i].append(feature)
             state_batch = [np.concatenate(s) for s in state_batch]
             exps_batch.append(state_batch)
             exps_batch.append(actions)
-            exps_batch.append(state_hashes)
+            #exps_batch.append(state_hashes)
         else:
             raise Exception('Unsuported Experience Replay Target')
         return exps_batch

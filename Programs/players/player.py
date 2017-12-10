@@ -195,7 +195,7 @@ class NeuralFictitiousPlayer(Player):
         imp_weights = variable(imp_weights, cuda=self.cuda)
         rewards = variable(exps[2].astype(np.float32), cuda=self.cuda)
         next_state_vars = [variable(s, cuda=self.cuda) for s in exps[3]]
-        state_hashes = exps[5]
+       # state_hashes = exps[5]
 
         if self.tensorboard is not None:
             actions = bucket_encode_actions(action_vars, cuda=self.cuda)
@@ -203,8 +203,8 @@ class NeuralFictitiousPlayer(Player):
                 self.tensorboard.add_scalar_value('M_RL_sampled_actions', int(a), time.time())
             for r in exps[2]:
                 self.tensorboard.add_scalar_value('M_RL_sampled_rewards', int(r), time.time())
-            for h in state_hashes:
-                self.tensorboard.add_scalar_value('M_RL_sampled_states', int(h), time.time())
+#            for h in state_hashes:
+#                self.tensorboard.add_scalar_value('M_RL_sampled_states', int(h), time.time())
 
 
         if self.is_training:
@@ -226,13 +226,13 @@ class NeuralFictitiousPlayer(Player):
             state_vars = [variable(s, cuda=self.cuda) for s in exps[0]]
             # 4 x 11 each column is torch variable
             action_vars = variable(exps[1], cuda=self.cuda)
-            state_hashes = exps[2]
+            #state_hashes = exps[2]
             if self.tensorboard is not None:
                 actions= bucket_encode_actions(action_vars, cuda=self.cuda)
                 for a in actions.data.cpu().numpy():
                     self.tensorboard.add_scalar_value('M_SL_sampled_actions', int(a), time.time())
-                for h in state_hashes:
-                    self.tensorboard.add_scalar_value('M_SL_sampled_states', int(h), time.time())
+#                for h in state_hashes:
+#                    self.tensorboard.add_scalar_value('M_SL_sampled_states', int(h), time.time())
 
             if self.verbose:
                 start = timer()
