@@ -192,6 +192,9 @@ class FeaturizerManager():
                 f.load_state_dict(t.load(path, map_location=lambda storage, loc:storage.cuda(0)))
             else:
                 f.load_state_dict(t.load(path))
+            for param in f.parameters():
+                # freeze weights
+                param.requires_grad = False
             print('loaded gpu-enabled Featurizer? -> ', next(f.parameters()).is_cuda)
             return f
         else:

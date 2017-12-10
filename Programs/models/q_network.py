@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import time
-from game.game_utils import bucket_encode_actions
+from game.game_utils import bucket_encode_actions, array_to_cards
 
 selu = SELU()
 softmax = Softmax()
@@ -226,11 +226,13 @@ class QNetwork(t.nn.Module):
         self.grad_clip = grad_clip
         self.criterion = nn.MSELoss()
 
+        # exclude frozen weights (requires_grad=False) for featurizer
+        params = filter(lambda p: p.requires_grad, self.parameters())
         if optimizer == 'adam':
-            self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+            self.optim = optim.Adam(params, lr=learning_rate)
         elif optimizer == 'sgd':
             # 2016 paper
-            self.optim = optim.SGD(self.parameters(), lr=learning_rate)
+            self.optim = optim.SGD(params, lr=learning_rate)
         else:
             raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
 
@@ -245,6 +247,7 @@ class QNetwork(t.nn.Module):
         self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
+
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
                 flop_plays, turn_plays, river_plays, for_play=False):
         dropout = AlphaDropout(.1)
@@ -258,6 +261,7 @@ class QNetwork(t.nn.Module):
                 hand_strength = float(HS.data.cpu().numpy().flatten()[0])
                 self.tensorboard.add_scalar_value('p{}_hand_strength_q(play)'.format(self.player_id + 1),
                                                   hand_strength, time.time())
+
         # HS, proba_combinations, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
         q_values = selu(dropout(self.fc27(situation_with_opponent)))
@@ -359,11 +363,13 @@ class PiNetwork(t.nn.Module):
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
 
         self.grad_clip = grad_clip
+
+        params = filter(lambda p: p.requires_grad, self.parameters())
         if optimizer == 'adam':
-            self.optim = optim.Adam(self.parameters(), lr=learning_rate)
+            self.optim = optim.Adam(params, lr=learning_rate)
         elif optimizer == 'sgd':
             # 2016 paper
-            self.optim = optim.SGD(self.parameters(), lr=learning_rate)
+            self.optim = optim.SGD(params, lr=learning_rate)
         else:
             raise Exception('unsupported optimizer: use adam or sgd (lower cased)')
 
@@ -390,6 +396,10 @@ class PiNetwork(t.nn.Module):
                 hand_strength = float(HS.data.cpu().numpy().flatten()[0])
                 self.tensorboard.add_scalar_value('p{}_hand_strength_pi(play)'.format(self.player_id + 1),
                                                   hand_strength, time.time())
+            if hand_strength > 0.99:
+                import pdb;pdb.set_trace()
+                print(array_to_cards(hand.data.cpu().numpy()))
+
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))

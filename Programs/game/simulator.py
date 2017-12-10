@@ -258,7 +258,6 @@ class Simulator:
                 p_id += 1
         return players
 
-
     def _prepare_new_game(self):
         '''
         if new game -> initialize
@@ -679,6 +678,7 @@ class Simulator:
 
     def _handle_no_split(self):
         """Note that this function actually updates self.experiences with the final rewards and next state"""
+        self.total_reward_in_episode = {0: 0, 1: 0}
         s_pot = self.players[0].contribution_in_this_pot, self.players[1].contribution_in_this_pot
         # there are 3 cases:
         # - the winner put exactly the same amount in the pot as the loser.

@@ -104,6 +104,17 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
     :return:
     """
     possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)  # you don't have right to take certain actions, e.g betting more than you have or betting 0 or checking a raise
+
+    # @hack
+    # add some heuristics
+    # if check is possible
+    if 0 in possible_actions and -1 in possible_actions:
+        # one should not fold
+        del possible_actions[possible_actions.index(-1)]
+
+    if np.all([i in possible_actions for i in [-1, 0]]):
+        import pdb;pdb.set_trace()
+
     state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=False)
     state = [variable(s, cuda=cuda) for s in state]
     state.append(for_play)
@@ -188,43 +199,24 @@ class StrategyNFSP():
                 start = timer()
 
             action_probs = self._pi.forward(*state).squeeze()
-            ## log graph model
-            ## must have tensorboard open
-            ## tutorial https://github.com/lanpa/tensorboard-pytorch
-            #if not self.is_graph_created:
-            #    from tensorboardX import SummaryWriter
-            #    writer = SummaryWriter()
-            #    writer.add_graph(self._pi, action_probs)
-            #    writer.close()
 
             if self.verbose:
                 print('forward pass of pi took', timer() - start)
             possible_actions = authorized_actions_buckets(player, actions, b_round, opponent_side_pot)
-            # print('possible_actions')
-            #print('')
-            #print('i am a NFSP agent')
-            #print('possible actions', possible_actions)
-            #print('# of possible actions', len(possible_actions))
-            #print('betting round', b_round)
-            #print('actions taken so far', actions)
-            #print('my pot is', pot)
-            ##print('opponent pot is', opponent_s0dpot)
-            #print('')
+            # @hack
+            # add some heuristics
+            # if check is possible
+            if 0 in possible_actions and -1 in possible_actions:
+                # one should not fold
+                del possible_actions[possible_actions.index(-1)]
 
-            # print(possible_actions)
+            if np.all([i in possible_actions for i in [-1, 0]]):
+                import pdb;pdb.set_trace()
 
             idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
             valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])
 
-            # print('valid actions prob')
-            # print(valid_action_probs)
-            # @debug
-            # @hack: giving uniform prob, if probs are flat to zero
-            #if not t.sum(valid_action_probs).eq(0.0):
             valid_action_probs /= t.sum(valid_action_probs)
-            #else:
-            #valid_action_probs.fill_(0.1)
-#            if not t.sum(valid_action_probs).eq(0.0):
 
             action = bucket_to_action(sample_action(idx, valid_action_probs.data.cpu().numpy()), actions, b_round, player, opponent_side_pot)
             self.is_Q_used = False
