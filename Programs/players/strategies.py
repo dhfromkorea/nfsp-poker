@@ -24,11 +24,6 @@ GAMMA_VAL = 0.95
 def get_random_action(possible_actions, actions, b_round, player, opponent_side_pot):
     random_action_bucket = np.random.choice(possible_actions)
 
-    #print('')
-    #print('i am a random agent')
-    #print('possible actions', possible_actions)
-    #print('# of possible actions', len(possible_actions))
-    #print('')
     random_action = bucket_to_action(random_action_bucket, actions, b_round, player, opponent_side_pot)
     return random_action
 
@@ -117,8 +112,10 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
 
     # choose action in a greedy way
     if greedy:
-        Q_values_for_possible_actions = [Q_value for k, Q_value in enumerate(Q_values) if idx_to_bucket(k) in possible_actions]
-        best_possible_action_bucket = np.argmax(Q_values_for_possible_actions)
+        Q_values_for_possible_actions = np.array([Q_value for k, Q_value in enumerate(Q_values) if
+                                                  idx_to_bucket(k) in possible_actions])
+        ties = np.flatnonzero(Q_values_for_possible_actions == Q_values_for_possible_actions.max())
+        best_possible_action_bucket = np.random.choice(ties)
         best_possible_action_bucket = [idx_to_bucket(k) for k, Q_value in enumerate(Q_values) if idx_to_bucket(k) in possible_actions][best_possible_action_bucket]
         action = bucket_to_action(best_possible_action_bucket, actions, b_round, player, opponent_side_pot)
     else:
