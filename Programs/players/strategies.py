@@ -112,8 +112,6 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
         # one should not fold
         del possible_actions[possible_actions.index(-1)]
 
-    if np.all([i in possible_actions for i in [-1, 0]]):
-        import pdb;pdb.set_trace()
 
     state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=False)
     state = [variable(s, cuda=cuda) for s in state]
@@ -168,7 +166,8 @@ class StrategyNFSP():
         # we use number of episodes as n
         # the exact decay schedule was not specified but alluded to slower than sqrt
         # so we use (n)^1/4
-        self.eps = self.eps / np.power(np.max([episode_idx, 1]), 1/4)
+        self.eps = np.max([self.eps / np.power(np.max([episode_idx, 1]), 1/4), 0.01])
+        self.eta = np.max([self.eta / np.power(np.max([episode_idx, 1]), 1/4), 0.1])
         if player.is_all_in:
             assert player.stack == 0
             return Action('null'), False
@@ -210,8 +209,6 @@ class StrategyNFSP():
                 # one should not fold
                 del possible_actions[possible_actions.index(-1)]
 
-            if np.all([i in possible_actions for i in [-1, 0]]):
-                import pdb;pdb.set_trace()
 
             idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
             valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])

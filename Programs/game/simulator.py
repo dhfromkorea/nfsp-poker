@@ -151,8 +151,8 @@ class Simulator:
                player_id=0,
                optimizer=optimizer,
                grad_clip=grad_clip,
-               neural_network_history=self.neural_network_history,
-               neural_network_loss=self.neural_network_loss,
+               #neural_network_history=self.neural_network_history,
+               #neural_network_loss=self.neural_network_loss,
                tensorboard=self.tensorboard,
                cuda=cuda)
         Q1 = Q(n_actions=NUM_ACTIONS,
@@ -163,8 +163,8 @@ class Simulator:
                optimizer=optimizer,
                grad_clip=grad_clip,
                learning_rate=learning_rate_rl,
-               neural_network_history=self.neural_network_history,
-               neural_network_loss=self.neural_network_loss,
+               #neural_network_history=self.neural_network_history,
+               #neural_network_loss=self.neural_network_loss,
                tensorboard=self.tensorboard,
                cuda=cuda)
         Pi0 = Pi(n_actions=NUM_ACTIONS,
@@ -176,8 +176,8 @@ class Simulator:
                  optimizer=optimizer,
                  grad_clip=grad_clip,
                  learning_rate=learning_rate_sl,
-                 neural_network_history=self.neural_network_history,
-                 neural_network_loss=self.neural_network_loss,
+                 #neural_network_history=self.neural_network_history,
+                 #neural_network_loss=self.neural_network_loss,
                  tensorboard=self.tensorboard,
                  cuda=cuda)
         Pi1 = Pi(n_actions=NUM_ACTIONS,
@@ -189,8 +189,8 @@ class Simulator:
                  optimizer=optimizer,
                  grad_clip=grad_clip,
                  learning_rate=learning_rate_sl,
-                 neural_network_history=self.neural_network_history,
-                 neural_network_loss=self.neural_network_loss,
+                 #neural_network_history=self.neural_network_history,
+                 #neural_network_loss=self.neural_network_loss,
                  tensorboard=self.tensorboard,
                  cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
@@ -357,7 +357,7 @@ class Simulator:
                     self.players[1].remember(self.experiences[1])
 
         try:
-            self.update_play_history_with_final_rewards()
+            #self.update_play_history_with_final_rewards()
             if self.tensorboard is not None:
                 self._send_data_to_tensorboard()
         except KeyError:
@@ -445,15 +445,15 @@ class Simulator:
 
         # we save play history data here
         # we're computing exp tuple twice here (ugly..)
-        self.play_history[self.global_step] = {}
-        ph = self.play_history[self.global_step]
-        exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
-        ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': 0}
-        ph['game'] = {
-            'episode_index': self.games['#episodes'],
-            'to_play': self.to_play,
-            'b_round': self.b_round
-        }
+        #self.play_history[self.global_step] = {}
+        #ph = self.play_history[self.global_step]
+        #exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
+        #ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': 0}
+        #ph['game'] = {
+        #    'episode_index': self.games['#episodes'],
+        #    'to_play': self.to_play,
+        #    'b_round': self.b_round
+        #}
 
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
@@ -499,14 +499,14 @@ class Simulator:
             cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
             # fix typo em
             exp_id = self.experiment_id
-            gh_path = '{}{}_{}.p'.format(self.game_score_history_path, cur_t, exp_id)
-            ph_path = '{}{}_{}.p'.format(self.play_history_path, cur_t, exp_id)
-            nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, cur_t, exp_id)
-            nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, cur_t, exp_id)
-            self._save_results(self.games['winnings'], gh_path)
-            self._save_results(self.play_history, ph_path)
-            self._save_results(self.neural_network_history, nnh_path)
-            self._save_results(self.neural_network_loss, nnl_path)
+            #gh_path = '{}{}_{}.p'.format(self.game_score_history_path, cur_t, exp_id)
+            #ph_path = '{}{}_{}.p'.format(self.play_history_path, cur_t, exp_id)
+            #nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, cur_t, exp_id)
+            #nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, cur_t, exp_id)
+            #self._save_results(self.games['winnings'], gh_path)
+            #self._save_results(self.play_history, ph_path)
+            #self._save_results(self.neural_network_history, nnh_path)
+            #self._save_results(self.neural_network_loss, nnl_path)
 
             # save the trained model
             for p in self.players:
@@ -524,12 +524,12 @@ class Simulator:
 
             # flush data from the memory for gc
             self.games['winnings'] = {}
-            self.neural_network_history = {}
-            self.play_history = {}
-            self.neural_network_loss = {
-                0: {'q': [], 'pi': []},
-                1: {'q': [], 'pi': []}
-            }
+            #self.neural_network_history = {}
+            #self.play_history = {}
+            #self.neural_network_loss = {
+            #    0: {'q': [], 'pi': []},
+            #    1: {'q': [], 'pi': []}
+            #}
             print('game results logged')
 
     def _send_data_to_tensorboard(self):

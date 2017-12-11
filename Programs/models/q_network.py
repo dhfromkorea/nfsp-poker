@@ -5,6 +5,7 @@ import torch.optim as optim
 import numpy as np
 import time
 from game.game_utils import bucket_encode_actions, array_to_cards
+from game.utils import variable
 
 selu = SELU()
 softmax = Softmax()
@@ -183,8 +184,8 @@ class QNetwork(t.nn.Module):
                  featurizer,
                  game_info,
                  player_id,
-                 neural_network_history,
-                 neural_network_loss,
+                 #neural_network_history,
+                 #neural_network_loss,
                  learning_rate,
                  optimizer,
                  grad_clip=None,
@@ -224,7 +225,6 @@ class QNetwork(t.nn.Module):
             fcc.weight.data = t.from_numpy(np.random.normal(0, 1 / np.sqrt(shape[0]), shape)).float()
         # optimizer
         self.grad_clip = grad_clip
-        self.criterion = nn.MSELoss()
 
         # exclude frozen weights (requires_grad=False) for featurizer
         params = filter(lambda p: p.requires_grad, self.parameters())
@@ -243,10 +243,12 @@ class QNetwork(t.nn.Module):
         # for saving neural network history data
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
-        self.neural_network_history = neural_network_history
-        self.neural_network_loss = neural_network_loss
+        #self.neural_network_history = neural_network_history
+        #self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
+        # hyperparams for loss
+        self.beta = 0.1
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
                 flop_plays, turn_plays, river_plays, for_play=False):
@@ -268,11 +270,11 @@ class QNetwork(t.nn.Module):
         q_values = self.fc28(dropout(q_values))
 
         # for saving neural network history data
-        episode_id = self.game_info['#episodes']
-        if not episode_id in self.neural_network_history:
-            self.neural_network_history[episode_id] = {}
-        self.neural_network_history[episode_id][self.player_id] = {}
-        self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
+        #episode_id = self.game_info['#episodes']
+        #if not episode_id in self.neural_network_history:
+        #    self.neural_network_history[episode_id] = {}
+        #self.neural_network_history[episode_id][self.player_id] = {}
+        #self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
 
         return q_values
 
@@ -285,16 +287,18 @@ class QNetwork(t.nn.Module):
         actions_ = (bucket_encode_actions(actions, cuda=self.is_cuda) + 1).long()
         Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
 
-        loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+        #loss, mse, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+        loss, mse, entropy, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
-        if not 'q' in self.neural_network_loss[self.player_id]:
-            self.neural_network_loss[self.player_id]['q'] = []
-        raw_loss = loss.data.cpu().numpy()[0]
+        #if not 'q' in self.neural_network_loss[self.player_id]:
+        #    self.neural_network_loss[self.player_id]['q'] = []
+        mse = mse.data.cpu().numpy()[0]
         # todo: refactor the hard coded name
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(raw_loss), time.time())
-        self.neural_network_loss[self.player_id]['q'].append(raw_loss)
+            self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(mse), time.time())
+            self.tensorboard.add_scalar_value('p{}_q_entropy_loss'.format(self.player_id + 1), float(-entropy), time.time())
+        #self.neural_network_loss[self.player_id]['q'].append(mse)
 
         loss.backward()
         # @debug @todo
@@ -305,16 +309,32 @@ class QNetwork(t.nn.Module):
         self.optim.step()
         return td_deltas
 
-    def compute_loss(self, x, y, imp_weights):
+    def compute_loss(self, pred, target, imp_weights):
         '''
         compute weighted mse loss
         loss for each sample is scaled by imp_weight
         we need this to account for bias in replay sampling
-        '''
-        td_deltas = x - y
-        mse = t.mean(imp_weights * td_deltas.pow(2))
-        return mse, td_deltas
 
+        added entropy to term to increase diversity and exploration
+        beta is a hyperparameter
+        '''
+        td_deltas = pred - target
+        mse = t.mean(imp_weights * td_deltas.pow(2))
+        #mse = t.mean(td_deltas.pow(2))
+
+        # @experimental: entropy term
+        episode_id = self.game_info['#episodes']
+        self.beta = np.max([self.beta/np.power(np.max([1, episode_id]), 1/4), 0.01])
+        beta_var = variable(self.beta, cuda=self.is_cuda)
+        sm = Softmax(dim=0)
+        probs = sm(pred.unsqueeze(dim=1))
+        m = variable(np.array([1e-6]), cuda=self.is_cuda)
+        entropy = -t.sum(probs * t.log(t.max(probs, m)))
+
+        loss = mse - beta_var * entropy
+        return loss, mse, entropy, td_deltas
+        #loss = mse
+        #return loss, mse, td_deltas
 
 class PiNetwork(t.nn.Module):
     def __init__(self,
@@ -323,8 +343,8 @@ class PiNetwork(t.nn.Module):
                  featurizer,
                  game_info,
                  player_id,
-                 neural_network_history,
-                 neural_network_loss,
+                 #neural_network_history,
+                 #neural_network_loss,
                  learning_rate,
                  optimizer,
                  grad_clip=None,
@@ -379,8 +399,8 @@ class PiNetwork(t.nn.Module):
         # for saving neural network history data
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
-        self.neural_network_history = neural_network_history
-        self.neural_network_loss = neural_network_loss
+        #self.neural_network_history = neural_network_history
+        #self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays,
@@ -396,21 +416,18 @@ class PiNetwork(t.nn.Module):
                 hand_strength = float(HS.data.cpu().numpy().flatten()[0])
                 self.tensorboard.add_scalar_value('p{}_hand_strength_pi(play)'.format(self.player_id + 1),
                                                   hand_strength, time.time())
-            if hand_strength > 0.99:
-                import pdb;pdb.set_trace()
-                print(array_to_cards(hand.data.cpu().numpy()))
-
         situation_with_opponent = self.shared_network.forward(HS, cards_features, flop_features, turn_features, river_features, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays)
 
         pi_values = selu(dropout(self.fc27(situation_with_opponent)))
+        softmax = Softmax(dim=0)
         pi_values = softmax(dropout(self.fc28(pi_values)))
 
         # for saving neural network history data
-        episode_id = self.game_info['#episodes']
-        if not episode_id in self.neural_network_history:
-            self.neural_network_history[episode_id] = {}
-        self.neural_network_history[episode_id][self.player_id] = {}
-        self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
+        #episode_id = self.game_info['#episodes']
+        #if not episode_id in self.neural_network_history:
+        #    self.neural_network_history[episode_id] = {}
+        #self.neural_network_history[episode_id][self.player_id] = {}
+        #self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
 
         return pi_values
 
@@ -430,10 +447,10 @@ class PiNetwork(t.nn.Module):
         loss = criterion(pi_preds, (1+one_hot_actions).long())
 
         # log loss history data
-        if not 'pi' in self.neural_network_loss[self.player_id]:
-            self.neural_network_loss[self.player_id]['pi'] = []
+        #if not 'pi' in self.neural_network_loss[self.player_id]:
+        #    self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
-        self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
+        #self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
             self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
@@ -498,8 +515,8 @@ class QNetworkBN(t.nn.Module):
                  featurizer,
                  game_info,
                  player_id,
-                 neural_network_history,
-                 neural_network_loss,
+                 #neural_network_history,
+                 #neural_network_loss,
                  learning_rate,
                  optimizer,
                  grad_clip=None,
@@ -546,8 +563,8 @@ class QNetworkBN(t.nn.Module):
         # for saving neural network history data
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
-        self.neural_network_history = neural_network_history
-        self.neural_network_loss = neural_network_loss
+        #self.neural_network_history = neural_network_history
+        #self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
@@ -561,11 +578,11 @@ class QNetworkBN(t.nn.Module):
         q_values = self.bn28(self.fc28(q_values))
 
         # for saving neural network history data
-        episode_id = self.game_info['#episodes']
-        if not episode_id in self.neural_network_history:
-            self.neural_network_history[episode_id] = {}
-        self.neural_network_history[episode_id][self.player_id] = {}
-        self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
+        #episode_id = self.game_info['#episodes']
+        #if not episode_id in self.neural_network_history:
+        #    self.neural_network_history[episode_id] = {}
+        #self.neural_network_history[episode_id][self.player_id] = {}
+        #self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
 
         return q_values
 
@@ -577,10 +594,10 @@ class QNetworkBN(t.nn.Module):
         loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
         # log loss history data
-        if not 'q' in self.neural_network_loss[self.player_id]:
-            self.neural_network_loss[self.player_id]['q'] = []
-        raw_loss = loss.data.cpu().numpy()[0]
-        self.neural_network_loss[self.player_id]['q'].append(raw_loss)
+        #if not 'q' in self.neural_network_loss[self.player_id]:
+        #    self.neural_network_loss[self.player_id]['q'] = []
+        #raw_loss = loss.data.cpu().numpy()[0]
+        #self.neural_network_loss[self.player_id]['q'].append(raw_loss)
         # todo: refactor the hard coded name
         if self.tensorboard is not None:
             self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(raw_loss), time.time())
@@ -608,8 +625,8 @@ class PiNetworkBN(t.nn.Module):
                  featurizer,
                  game_info,
                  player_id,
-                 neural_network_history,
-                 neural_network_loss,
+                 #neural_network_history,
+                 #neural_network_loss,
                  learning_rate,
                  optimizer,
                  tensorboard=None,
@@ -650,8 +667,8 @@ class PiNetworkBN(t.nn.Module):
         # for saving neural network history data
         self.game_info = game_info
         self.player_id = player_id  # know the owner of the network
-        self.neural_network_history = neural_network_history
-        self.neural_network_loss = neural_network_loss
+        #self.neural_network_history = neural_network_history
+        #self.neural_network_loss = neural_network_loss
         self.tensorboard = tensorboard
 
     def forward(self, hand, board, pot, stack, opponent_stack, big_blind, dealer, preflop_plays, flop_plays, turn_plays, river_plays):
@@ -662,11 +679,11 @@ class PiNetworkBN(t.nn.Module):
         pi_values = softmax(self.bn28(self.fc28(pi_values)))
 
         # for saving neural network history data
-        episode_id = self.game_info['#episodes']
-        if not episode_id in self.neural_network_history:
-            self.neural_network_history[episode_id] = {}
-        self.neural_network_history[episode_id][self.player_id] = {}
-        self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
+        #episode_id = self.game_info['#episodes']
+        #if not episode_id in self.neural_network_history:
+        #    self.neural_network_history[episode_id] = {}
+        #self.neural_network_history[episode_id][self.player_id] = {}
+        #self.neural_network_history[episode_id][self.player_id]['pi'] = pi_values.data.cpu().numpy()
 
         return pi_values
 
@@ -686,10 +703,10 @@ class PiNetworkBN(t.nn.Module):
         loss = criterion(pi_preds, (1 + one_hot_actions).long())
 
         # log loss history data
-        if not 'pi' in self.neural_network_loss[self.player_id]:
-            self.neural_network_loss[self.player_id]['pi'] = []
+        #if not 'pi' in self.neural_network_loss[self.player_id]:
+        #    self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
-        self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
+        #self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
             self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
