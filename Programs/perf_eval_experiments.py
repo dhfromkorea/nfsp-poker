@@ -9,6 +9,7 @@ import pickle
 import evaluation.expt_utils as eu
 import argparse
 import game
+from game.simulator import Simulator
 
 from pycrayon import CrayonClient
 import time
@@ -26,8 +27,8 @@ def load_results(path):
 def get_arg_parser():
     parser = argparse.ArgumentParser(description='process configuration vars')
     # dev level
-    parser.add_argument('-s1', default='NFSP', dest='strategy1')
-    parser.add_argument('-s2', default='random', dest='strategy2')
+    parser.add_argument('-s1', default='NFSP', dest='strategy_p1')
+    parser.add_argument('-s2', default='random', dest='strategy_p2')
     parser.add_argument('-c', '--cuda', action='store_true', dest='cuda')
     parser.set_defaults(cuda=False)
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose')
@@ -38,7 +39,7 @@ def get_arg_parser():
     parser.add_argument('-ss', '--skip_simulation', action='store_true',
                         dest='skip_simulation', help='show only the latest results without simulation')
     parser.set_defaults(skip_simulation=False)
-    parser.add_argument('-en', '--experiment_name', default='abc', type=str, help="name to be displayed in tensorboard", dest="experiment_name")
+    parser.add_argument('-en', '--experiment_name', default='', type=str, help="name to be displayed in tensorboard", dest="experiment_name")
     # game/experiment
     parser.add_argument('-ng', '--num_games', default=10000, type=int, dest='num_games',
                         help='number of games to simulate')
@@ -89,6 +90,12 @@ def get_arg_parser():
                         type=str, dest='tb_hostname', help='hostname for tensorboard')
     parser.add_argument('-tbp', '--tensorboard_port', default='8889', type=str, dest='tb_port',
                         help='port for tensorboard')
+    parser.add_argument('-lmp1', '--load_model_player1', action='store_true', dest='load_model_p1',
+                        help='load saved model path')
+    parser.set_defaults(load_model_p1=False)
+    parser.add_argument('-lmp2', '--load_model_player2', action='store_true', dest='load_model_p2',
+                        help='load saved model path')
+    parser.set_defaults(load_model_p2=False)
     return parser
 
 def setup_tensorboard(exp_id, cur_t, hostname, port):
@@ -147,88 +154,67 @@ if __name__ == '__main__':
     optimizer = args.optimizer
     grad_clip = args.grad_clip
     learning_freq = args.learning_freq
-    strategy1 = args.strategy1
-    strategy2 = args.strategy2
+    strategy_p1 = args.strategy_p1
+    strategy_p2 = args.strategy_p2
     tb_hostname = args.tb_hostname
     tb_port = args.tb_port
+    load_model_p1 = args.load_model_p1
+    load_model_p2 = args.load_model_p2
+    if load_model_p1 and strategy_p1 != 'NFSP':
+        raise Exception('if you want to load a model for p1, strategy type should be NFSP')
+    if load_model_p2 and strategy_p2 != 'NFSP':
+        raise Exception('if you want to load a model for p2, strategy type should be NFSP')
 
     experiment_name = ''
     print('running tests with the following setup')
     for k, v in vars(args).items():
         print('-{} {} '.format(k, v))
         experiment_name += '{}:{}_'.format(k, v)
-    experiment_id = '{}vs{}_{}'.format(strategy1, strategy2, hash(experiment_name)).lower()
+    experiment_id = '{}vs{}_{}'.format(strategy_p1, strategy_p2, hash(experiment_name)).lower()
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
     with open('data/experiment_log.txt', 'a') as f:
         f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
     tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, tb_hostname, tb_port)
 
     results_dict = {}
-    if not skip_simulation:
-        # sometimes we want to skip simulation and view only the latest simulation results
-        memory_rl_config = {
-            # 'size': 2 ** 17,
-            'size': buffer_size_rl,
-            # 'partition_num': 2 ** 11,
-            'partition_num': num_partitions,
-            # 'total_step': 10 ** 9,
-            'total_step': total_steps,
-            # 'batch_size': 2 ** 5
-            'batch_size': batch_size_rl
-        }
-        memory_sl_config = {
-            'size': buffer_size_sl,
-            'batch_size': batch_size_sl
-        }
-        results_dict[strategy1 + 'vs' + strategy2] = eu.conduct_games(strategy1, strategy2,
-                                                          # 2 ** 7
-                                                          learn_start=learn_start,
-                                                          # 10000
-                                                          num_games=num_games,
-                                                          # 100
-                                                          mov_avg_window=mov_avg_window,
-                                                          # 100
-                                                          log_freq=log_freq,
-                                                          # default for eta_p1 =0.5
-                                                          eta_p1=eta_p1,
-                                                          # default for eta_p1 =0.5
-                                                          eta_p2=eta_p2,
-                                                          # default 0.1
-                                                          eps=eps,
-                                                          # default 0.95
-                                                          gamma=gamma,
-                                                          # default 1e-3
-                                                          learning_rate_rl=learning_rate_rl,
-                                                          learning_rate_sl=learning_rate_sl,
-                                                          optimizer=optimizer,
-                                                          grad_clip=grad_clip,
-                                                          learning_freq=learning_freq,
-                                                          # default 100 episodes
-                                                          target_Q_update_freq=target_Q_update_freq,
-                                                          memory_rl_config=memory_rl_config,
-                                                          memory_sl_config=memory_sl_config,
-                                                          # default false
-                                                          cuda=cuda,
-                                                          verbose=verbose,
-                                                          tensorboard=tb_experiment,
-                                                          experiment_id=experiment_id,
-                                                          use_batch_norm=use_batch_norm
-                                                          )
+    # sometimes we want to skip simulation and view only the latest simulation results
+    memory_rl_config = {
+        # 'size': 2 ** 17,
+        'size': buffer_size_rl,
+        # 'partition_num': 2 ** 11,
+        'partition_num': num_partitions,
+        # 'total_step': 10 ** 9,
+        'total_step': total_steps,
+        # 'batch_size': 2 ** 5
+        'batch_size': batch_size_rl
+    }
+    memory_sl_config = {
+        'size': buffer_size_sl,
+        'batch_size': batch_size_sl
+    }
 
-    # pick the latest created file == results just created from the simulation above
-    game_score_history_paths = g.glob(GAME_SCORE_HISTORY_PATH + '*')[-1]
-    play_history_paths = g.glob(PLAY_HISTORY_PATH + '*')[-1]
-    neural_network_history_paths = g.glob(NEURAL_NETWORK_HISTORY_PATH + '*')[-1]
-    neural_network_loss_paths = g.glob(NEURAL_NETWORK_LOSS_PATH + '*')[-1]
+    simulator = Simulator(strategy_p1=strategy_p1,
+                          strategy_p2=strategy_p2,
+                          learn_start=learn_start,
+                          eta_p1=eta_p1,
+                          eta_p2=eta_p2,
+                          gamma=gamma,
+                          eps=eps,
+                          learning_rate_rl=learning_rate_rl,
+                          learning_rate_sl=learning_rate_sl,
+                          learning_freq=learning_freq,
+                          target_Q_update_freq=target_Q_update_freq,
+                          use_batch_norm=use_batch_norm,
+                          memory_rl_config=memory_rl_config,
+                          memory_sl_config=memory_sl_config,
+                          optimizer=optimizer,
+                          grad_clip=grad_clip,
+                          experiment_id=experiment_id,
+                          verbose=verbose,
+                          cuda=cuda,
+                          log_freq=log_freq,
+                          tensorboard=tb_experiment,
+                          load_model_p1=load_model_p1,
+                          load_model_p2=load_model_p2)
 
-    # eu.plot_results(results_dict)
-    print('game history')
-    print(load_results(game_score_history_paths))
-    print('play history')
-    for k, v in load_results(play_history_paths).items():
-        print(k)
-        print(v)
-        print('')
-    print('neural network history')
-    print(load_results(neural_network_history_paths))
-    print(load_results(neural_network_loss_paths))
+    simulator.start(num_games)

@@ -4,7 +4,7 @@ from models.q_network import QNetwork, QNetworkBN, PiNetwork, PiNetworkBN
 from players.strategies import strategy_RL, strategy_random, strategy_mirror, StrategyNFSP
 from players.player import Player, NeuralFictitiousPlayer
 
-from game.utils import get_last_round
+from game.utils import get_last_round, load_model
 from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, array_to_cards, action_to_array, cards_to_array
 from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
@@ -26,6 +26,10 @@ NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
 NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
 EXPERIMENT_PATH = 'data/tensorboard/'
 MODEL_SAVEPATH = 'data/neural_network_history/models/'
+MODEL_PATH_Q_P1 = 'data/neural_network_history/best_models/q_p1.pt'
+MODEL_PATH_PI_P1 = 'data/neural_network_history/best_models/pi_p1.pt'
+MODEL_PATH_Q_P2 = 'data/neural_network_history/best_models/q_p2.pt'
+MODEL_PATH_PI_P2 = 'data/neural_network_history/best_models/pi_p2.pt'
 
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]
@@ -34,7 +38,7 @@ NUM_HIDDEN_LAYERS = 50
 NUM_ACTIONS = 16
 
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
-                         'RL': strategy_RL}
+                         'RL': strategy_RL, 'saved_model': None}
 
 baseline_strategies = ['mirror', 'random']
 qnetwork_strategies = ['RL']
@@ -68,8 +72,10 @@ class Simulator:
                  use_batch_norm,
                  optimizer,
                  experiment_id,
-                 p1_strategy,
-                 p2_strategy,
+                 strategy_p1,
+                 strategy_p2,
+                 load_model_p1,
+                 load_model_p2,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
                  game_score_history_path=GAME_SCORE_HISTORY_PATH,
@@ -94,8 +100,8 @@ class Simulator:
         self.target_Q_update_freq = target_Q_update_freq
         self.learn_start = learn_start
         self.use_batch_norm = use_batch_norm
-        self.strategy_p1 = p1_strategy
-        self.strategy_p2 = p2_strategy
+        self.strategy_p1 = strategy_p1
+        self.strategy_p2 = strategy_p2
 
         # NFSP-speicfic network hyperparams
         self.etas = {0: eta_p1, 1: eta_p2}
@@ -105,16 +111,16 @@ class Simulator:
         # historical data
         # 1. game score
         self.games = {'n': 0, '#episodes': 0, 'winnings': {}}
-        self.game_score_history_path = game_score_history_path
+        #self.game_score_history_path = game_score_history_path
         # 2. play
-        self.play_history = {}
-        self.play_history_path = play_history_path
+        #self.play_history = {}
+        #self.play_history_path = play_history_path
         # 3. neural network
-        self.neural_network_history_path = neural_network_history_path
-        self.neural_network_history = {}
-        self.neural_network_loss_path = neural_network_loss_path
-        self.neural_network_loss = {0: {'q': [], 'pi': []},
-                                    1: {'q': []}, 'pi': []}
+        #self.neural_network_history_path = neural_network_history_path
+        #self.neural_network_history = {}
+        #self.neural_network_loss_path = neural_network_loss_path
+        #self.neural_network_loss = {0: {'q': [], 'pi': []},
+        #                            1: {'q': []}, 'pi': []}
         # 4. tensorboard
         self.tensorboard = tensorboard
         self.experiment_id = experiment_id
@@ -131,18 +137,18 @@ class Simulator:
         self.global_step = 0
 
         # define players
-        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
+        self.should_load_models = [load_model_p1, load_model_p2]
+        self.q_model_paths = [MODEL_PATH_Q_P1, MODEL_PATH_Q_P2]
+        self.pi_model_paths = [MODEL_PATH_PI_P1, MODEL_PATH_PI_P2]
 
         if self.use_batch_norm:
-            # ugly switch that does not scale
-            # for simplicy let's keep this way
-            # as we may still want to keep testing Q without BN
             Q = QNetworkBN
             Pi = PiNetworkBN
         else:
             Q = QNetwork
             Pi = PiNetwork
 
+        featurizer = FeaturizerManager.load_model(featurizer_path, cuda=cuda)
         Q0 = Q(n_actions=NUM_ACTIONS,
                hidden_dim=NUM_HIDDEN_LAYERS,
                featurizer=featurizer,
@@ -195,7 +201,7 @@ class Simulator:
                  cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
         Pi_networks = {0: Pi0, 1: Pi1}
-        self.players = self._generate_player_instances(p1_strategy, p2_strategy,
+        self.players = self._generate_player_instances(strategy_p1, strategy_p2,
                                                        Q_networks, Pi_networks,
                                                        learn_start, verbose)
 
@@ -220,23 +226,26 @@ class Simulator:
             # return self.games.winnings
             return self.games['winnings']
 
-    def _generate_player_instances(self, p1_strategy, p2_strategy,
+    def _generate_player_instances(self, strategy_p1, strategy_p2,
                                    Q_networks, Pi_networks, learn_start, verbose):
         players = []
-        p_id = 0
         # Strategies that do not require Q
-        for strategy in [p1_strategy, p2_strategy]:
+        for p_id, strategy in enumerate([strategy_p1, strategy_p2]):
             if strategy not in allowed_strategies:
                 raise ValueError("Not a valid strategy")
             elif strategy in baseline_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy], INITIAL_MONEY, p_names[p_id], verbose=verbose))
-                p_id += 1
             elif strategy in qnetwork_strategies:
                 players.append(Player(p_id, strategy_function_map[strategy](Q_networks[p_id], True), INITIAL_MONEY, p_names[p_id], verbose=verbose))
-                p_id += 1
             elif strategy in NFSP_strategies:
-                strategy = StrategyNFSP(Q=Q_networks[p_id],
-                                        pi=Pi_networks[p_id],
+                Q = Q_networks[p_id]
+                pi = Pi_networks[p_id]
+                if self.should_load_models[p_id]:
+                    Q = load_model(self.q_model_paths[p_id], Q, cuda=self.cuda)
+                    pi = load_model(self.pi_model_paths[p_id], pi, cuda=self.cuda)
+
+                strategy = StrategyNFSP(Q=Q,
+                                        pi=pi,
                                         eta=self.etas[p_id],
                                         eps=self.eps,
                                         cuda=self.cuda)
@@ -255,7 +264,6 @@ class Simulator:
                                              tensorboard=self.tensorboard,
                                              cuda=self.cuda)
                 players.append(nfp)
-                p_id += 1
         return players
 
     def _prepare_new_game(self):

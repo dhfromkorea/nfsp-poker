@@ -65,3 +65,24 @@ def initialize_save_folder(path):
         if e.errno != errno.EEXIST:
             raise Exception('could not initialize save data folder')
     return save_path
+
+
+def load_model(path, base_model, cuda=False, freeze_weights=False):
+    '''
+    load a torch model
+    '''
+    if os.path.isfile(path):
+        if cuda:
+            m = t.load(path, map_location=lambda storage, loc:storage.cuda(0))
+            base_model.load_state_dict(m)
+        else:
+            base_model.load_state_dict(t.load(path))
+
+        if freeze_weights:
+            for param in base_model.parameters():
+                # freeze weights
+                param.requires_grad = False
+        print('loaded gpu-enabled model? -> ', next(base_model.parameters()).is_cuda)
+        return base_model
+    else:
+        raise LoadModelError('The path does not exist')
