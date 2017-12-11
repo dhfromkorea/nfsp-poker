@@ -126,12 +126,6 @@ class CardFeaturizer1(t.nn.Module):
         return hand_strength, cards_features, flop_alone, turn_alone, river_alone
 
 
-def clip_gradients(nn, bound=10):
-    for p in nn.parameters():
-        if p.grad is not None:
-            p.grad = p.grad * ((bound <= p.grad).float()) * ((bound >= p.grad).float()) + bound * ((p.grad > bound).float()) - bound * ((p.grad < -bound).float())
-
-
 class SharedNetwork(t.nn.Module):
     def __init__(self, n_actions, hidden_dim, cuda=False):
         super(SharedNetwork, self).__init__()
@@ -184,19 +178,19 @@ class QNetwork(t.nn.Module):
                  featurizer,
                  game_info,
                  player_id,
-                 #neural_network_history,
-                 #neural_network_loss,
                  learning_rate,
                  optimizer,
-                 grad_clip=None,
+                 use_entropy_loss,
+                 grad_clip,
                  tensorboard=None,
                  is_target_Q=False,
                  shared_network=None,
                  pi_network=None,
-                 cuda=False):
+                 cuda=False, verbose=False):
         super(QNetwork, self).__init__()
 
-        self.is_cuda=cuda
+        self.is_cuda = cuda
+        self.verbose = verbose
         self.n_actions = n_actions
         self.featurizer = featurizer
         self.hidden_dim = hidden_dim
@@ -242,10 +236,9 @@ class QNetwork(t.nn.Module):
 
         # for saving neural network history data
         self.game_info = game_info
-        self.player_id = player_id  # know the owner of the network
-        #self.neural_network_history = neural_network_history
-        #self.neural_network_loss = neural_network_loss
+        self.player_id = player_id
         self.tensorboard = tensorboard
+        self.use_entropy_loss = use_entropy_loss
 
         # hyperparams for loss
         self.beta = 0.1
@@ -257,7 +250,7 @@ class QNetwork(t.nn.Module):
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
-        if for_play:
+        if self.verbose and for_play:
             # if forward was used during play (not training)
             if self.tensorboard is not None:
                 hand_strength = float(HS.data.cpu().numpy().flatten()[0])
@@ -269,43 +262,26 @@ class QNetwork(t.nn.Module):
         q_values = selu(dropout(self.fc27(situation_with_opponent)))
         q_values = self.fc28(dropout(q_values))
 
-        # for saving neural network history data
-        #episode_id = self.game_info['#episodes']
-        #if not episode_id in self.neural_network_history:
-        #    self.neural_network_history[episode_id] = {}
-        #self.neural_network_history[episode_id][self.player_id] = {}
-        #self.neural_network_history[episode_id][self.player_id]['q'] = q_values.data.cpu().numpy()
-
         return q_values
 
     def learn(self, states, actions, Q_targets, imp_weights):
         self.optim.zero_grad()
-        # TODO: support batch forward?
-        # not sure if it's supported as it's written now
         all_Q_preds = self.forward(*states)
 
         actions_ = (bucket_encode_actions(actions, cuda=self.is_cuda) + 1).long()
         Q_preds = t.cat([all_Q_preds[i, aa] for i, aa in enumerate(actions_.data)]).squeeze()  # Q(s,a)
 
-        #loss, mse, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
-        loss, mse, entropy, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
+        loss, td_deltas = self.compute_loss(Q_preds, Q_targets, imp_weights)
 
-        # log loss history data
-        #if not 'q' in self.neural_network_loss[self.player_id]:
-        #    self.neural_network_loss[self.player_id]['q'] = []
-        mse = mse.data.cpu().numpy()[0]
-        # todo: refactor the hard coded name
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_q_mse_loss'.format(self.player_id + 1), float(mse), time.time())
-            self.tensorboard.add_scalar_value('p{}_q_entropy_loss'.format(self.player_id + 1), float(-entropy), time.time())
-        #self.neural_network_loss[self.player_id]['q'].append(mse)
+            raw_loss = loss.data.cpu().numpy()[0]
+            self.tensorboard.add_scalar_value('p{}_q_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
-        # @debug @todo
+
         if self.grad_clip is not None:
             t.nn.utils.clip_grad_norm(self.parameters(), self.grad_clip)
 
-        # update weights
         self.optim.step()
         return td_deltas
 
@@ -319,22 +295,20 @@ class QNetwork(t.nn.Module):
         beta is a hyperparameter
         '''
         td_deltas = pred - target
-        mse = t.mean(imp_weights * td_deltas.pow(2))
-        #mse = t.mean(td_deltas.pow(2))
+        loss = t.mean(imp_weights * td_deltas.pow(2))
 
-        # @experimental: entropy term
-        episode_id = self.game_info['#episodes']
-        self.beta = np.max([self.beta/np.power(np.max([1, episode_id]), 1/4), 0.01])
-        beta_var = variable(self.beta, cuda=self.is_cuda)
-        sm = Softmax(dim=0)
-        probs = sm(pred.unsqueeze(dim=1))
-        m = variable(np.array([1e-6]), cuda=self.is_cuda)
-        entropy = -t.sum(probs * t.log(t.max(probs, m)))
+        if self.use_entropy_loss:
+            # @experimental: entropy term
+            episode_id = self.game_info['#episodes']
+            self.beta = np.max([self.beta/np.power(np.max([1, episode_id]), 1/4), 0.01])
+            beta_var = variable(self.beta, cuda=self.is_cuda)
+            sm = Softmax(dim=0)
+            probs = sm(pred.unsqueeze(dim=1))
+            m = variable(np.array([1e-6]), cuda=self.is_cuda)
+            entropy = -t.sum(probs * t.log(t.max(probs, m)))
+            loss = loss - beta_var * entropy
+        return loss, td_deltas
 
-        loss = mse - beta_var * entropy
-        return loss, mse, entropy, td_deltas
-        #loss = mse
-        #return loss, mse, td_deltas
 
 class PiNetwork(t.nn.Module):
     def __init__(self,
@@ -351,10 +325,13 @@ class PiNetwork(t.nn.Module):
                  tensorboard=None,
                  shared_network=None,
                  q_network=None,
-                 cuda=False):
+                 cuda=False,
+                 verbose=False
+                ):
         super(PiNetwork, self).__init__()
         # cuda is a reserved property for t.nn.Module
         self.is_cuda = cuda
+        self.verbose = verbose
         self.n_actions = n_actions
         self.featurizer = featurizer
         self.hidden_dim = hidden_dim
@@ -410,7 +387,7 @@ class PiNetwork(t.nn.Module):
 
         HS, flop_features, turn_features, river_features, cards_features = self.featurizer.forward(hand, board)
 
-        if for_play:
+        if self.verbose and for_play:
             # if forward was used during play (not training)
             if self.tensorboard is not None:
                 hand_strength = float(HS.data.cpu().numpy().flatten()[0])
@@ -432,30 +409,19 @@ class PiNetwork(t.nn.Module):
         return pi_values
 
     def learn(self, states, actions):
-        """
-        From Torch site
-         loss = nn.CrossEntropyLoss()
-         input = autograd.Variable(torch.randn(3, 5), requires_grad=True)
-         target = autograd.Variable(torch.LongTensor(3).random_(5))
-         output = loss(input, target)
-         output.backward()
-        """
         self.optim.zero_grad()
         pi_preds = self.forward(*states).squeeze()
         criterion = nn.CrossEntropyLoss()
         one_hot_actions = bucket_encode_actions(actions, cuda=self.is_cuda)
         loss = criterion(pi_preds, (1+one_hot_actions).long())
 
-        # log loss history data
-        #if not 'pi' in self.neural_network_loss[self.player_id]:
-        #    self.neural_network_loss[self.player_id]['pi'] = []
         raw_loss = loss.data.cpu().numpy()[0]
-        #self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
+
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_pi_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
-        # @debug @hack
+
         if self.grad_clip is not None:
             t.nn.utils.clip_grad_norm(self.parameters(), self.grad_clip)
         self.optim.step()
@@ -708,7 +674,7 @@ class PiNetworkBN(t.nn.Module):
         raw_loss = loss.data.cpu().numpy()[0]
         #self.neural_network_loss[self.player_id]['pi'].append(raw_loss)
         if self.tensorboard is not None:
-            self.tensorboard.add_scalar_value('p{}_pi_ce_loss'.format(self.player_id + 1), float(raw_loss), time.time())
+            self.tensorboard.add_scalar_value('p{}_pi_loss'.format(self.player_id + 1), float(raw_loss), time.time())
 
         loss.backward()
         self.optim.step()

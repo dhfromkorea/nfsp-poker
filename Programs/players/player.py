@@ -197,7 +197,7 @@ class NeuralFictitiousPlayer(Player):
         next_state_vars = [variable(s, cuda=self.cuda) for s in exps[3]]
         state_hashes = exps[5]
 
-        if self.tensorboard is not None:
+        if self.verbose and self.tensorboard is not None:
             actions = bucket_encode_actions(action_vars, cuda=self.cuda)
             for a in actions.data.cpu().numpy():
                 self.tensorboard.add_scalar_value('M_RL_sampled_actions', int(a), time.time())
@@ -227,7 +227,7 @@ class NeuralFictitiousPlayer(Player):
             # 4 x 11 each column is torch variable
             action_vars = variable(exps[1], cuda=self.cuda)
             state_hashes = exps[2]
-            if self.tensorboard is not None:
+            if self.verbose and self.tensorboard is not None:
                 actions= bucket_encode_actions(action_vars, cuda=self.cuda)
                 for a in actions.data.cpu().numpy():
                     self.tensorboard.add_scalar_value('M_SL_sampled_actions', int(a), time.time())
