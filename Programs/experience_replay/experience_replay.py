@@ -91,11 +91,6 @@ class ReplayBufferManager:
                 self._last_step_buffer['r'] += experience['final_reward']
             # store T_{t-1} in a real buffer
             exp_tuple = ReplayBufferManager.make_exp_tuple(self._last_step_buffer)
-            #print('stored experience')
-            #pp.pprint(exp_tuple[1])
-            #pp.pprint(exp_tuple[2])
-            #if not(-100 <= exp_tuple[2] <= 100):
-                #import pdb;pdb.set_trace()
             self.store(exp_tuple)
 
         # we flush empty temp buffer is a new episode starts

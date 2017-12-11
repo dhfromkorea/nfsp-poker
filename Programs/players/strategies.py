@@ -12,7 +12,6 @@ import torch as t
 import random
 from timeit import default_timer as timer
 
-
 TARGET_NETWORK_UPDATE_PERIOD = 300  # every 300 episodes
 ANTICIPATORY_PARAMETER = 0.1
 EPSILON = 0.01
@@ -112,6 +111,15 @@ def strategy_RL_aux(player, board, pot, actions, b_round, opponent_stack, oppone
         # one should not fold
         del possible_actions[possible_actions.index(-1)]
 
+    # @hack: remove high roller actions
+    #try:
+    #    # anything betting above 20 should be discouraged
+    #    # when initial money is only 100
+    #    high_bet_i = possible_actions.index(8)
+    #    # but allow all-in
+    #    possible_actions = possible_actions[:high_bet_i] + [possible_actions[-1]]
+    #except ValueError:
+    #    pass
 
     state = build_state(player, board, pot, actions, opponent_stack, blinds[1], as_variable=False)
     state = [variable(s, cuda=cuda) for s in state]
@@ -208,7 +216,15 @@ class StrategyNFSP():
             if 0 in possible_actions and -1 in possible_actions:
                 # one should not fold
                 del possible_actions[possible_actions.index(-1)]
-
+            # @hack: remove high roller actions
+            #try:
+            #    # anything betting above 20 should be discouraged
+            #    # when initial money is only 100
+            #    high_bet_i = possible_actions.index(8)
+            #    # but allow all-in
+            #    possible_actions = possible_actions[:high_bet_i] + [possible_actions[-1]]
+            #except ValueError:
+            #    pass
 
             idx = [idx_to_bucket(k) for k, _ in enumerate(action_probs) if idx_to_bucket(k) in possible_actions]
             valid_action_probs = t.stack([p for k, p in enumerate(action_probs) if idx_to_bucket(k) in possible_actions])

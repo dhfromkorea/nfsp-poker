@@ -154,6 +154,7 @@ class FeaturizerManager():
         self.data['train']['x_board'] = x_board_train
         self.data['train']['y_hs'] = scaler.fit_transform(y_hs_train)
         self.data['train']['y_probs_combi'] = y_probas_combi_train
+        print('traindata size', len(train_dataset))
 
         if includes_val:
             x_hand_val, x_board_val, y_hs_val, y_probas_combi_val \
@@ -162,6 +163,7 @@ class FeaturizerManager():
             self.data['val']['x_board'] = x_board_val
             self.data['val']['y_hs'] = scaler.transform(y_hs_val)
             self.data['val']['y_probs_combi'] = y_probas_combi_val
+            print('val data size', len(val_dataset))
 
         if includes_test:
             x_hand_test, x_board_test, y_hs_test, y_probas_combi_test \
@@ -170,6 +172,7 @@ class FeaturizerManager():
             self.data['test']['x_board'] = x_board_test
             self.data['test']['y_hs'] = scaler.transform(y_hs_test)
             self.data['test']['y_probs_combi'] = y_probas_combi_test
+            print('test data size', len(test_dataset))
 
         return train_dataset, val_dataset, test_dataset
 
