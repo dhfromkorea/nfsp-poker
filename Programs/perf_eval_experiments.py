@@ -4,6 +4,13 @@
 3. NFSP RL agent against a lagged agent
 4. NFSP RL agent against a simple DDQN(eta = 0) and the average policy agent(eta=1)
 '''
+
+'''COMMANDS TO RUN
+Small Test : python perf_eval_experiments.py -ng 100 -ls 256 -bs_rl 32 -bfs_rl 128 -bs_sl 32 -bfs_sl 256 -np 16
+Actual Test : python perf_eval_experiments.py -s1 NFSP -s2 Mirror -ng 100000 -ep1 1 -g 1 -bs_rl 512 -bs_sl 1024 -bfs_rl 262144 -np 2048 -bfs_sl 262144 -ls 1024 -eps 0.3 -lrnf 64 -lr_rl 0.01 -lr_sl 0.001 -gc 7.0 -lf 250
+
+'''
+
 import glob as g
 import pickle
 import evaluation.expt_utils as eu
