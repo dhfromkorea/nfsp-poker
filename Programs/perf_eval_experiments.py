@@ -96,6 +96,9 @@ def get_arg_parser():
     parser.add_argument('-lmp2', '--load_model_player2', action='store_true', dest='load_model_p2',
                         help='load saved model path')
     parser.set_defaults(load_model_p2=False)
+    parser.add_argument('-el', '--use_entropy_loss', action='store_true', dest='use_entropy_loss',
+                        help='use entropy loss for exploration')
+    parser.set_defaults(use_entropy_loss=False)
     return parser
 
 def setup_tensorboard(exp_id, cur_t, hostname, port):
@@ -158,6 +161,7 @@ if __name__ == '__main__':
     strategy_p2 = args.strategy_p2
     tb_hostname = args.tb_hostname
     tb_port = args.tb_port
+    use_entropy_loss = args.use_entropy_loss
     load_model_p1 = args.load_model_p1
     load_model_p2 = args.load_model_p2
     if load_model_p1 and strategy_p1 != 'NFSP':
@@ -209,6 +213,7 @@ if __name__ == '__main__':
                           memory_sl_config=memory_sl_config,
                           optimizer=optimizer,
                           grad_clip=grad_clip,
+                          use_entropy_loss=use_entropy_loss,
                           experiment_id=experiment_id,
                           verbose=verbose,
                           cuda=cuda,
