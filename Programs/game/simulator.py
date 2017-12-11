@@ -450,6 +450,7 @@ class Simulator:
             self.tensorboard.to_zip('{}{}_{}{}'.format(EXPERIMENT_PATH, cur_t, exp_id, tag))
             self._send_winnings_data_to_tensorboard()
 
+        # @todo: save experience replay
         print(self.games['n'], " games played and saved")
         # flush data from the memory for gc
         self.games['winnings'] = {}

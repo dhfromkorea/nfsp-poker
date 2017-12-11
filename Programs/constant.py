@@ -10,10 +10,11 @@ EXPERIMENT_PATH = 'data/tensorboard/'
 
 # change the variable here
 MODEL_SAVEPATH = 'data/neural_network_history/models/'
-MODEL_PATH_Q_P1 = 'data/neural_network_history/best_models/q_p1.pt'
-MODEL_PATH_PI_P1 = 'data/neural_network_history/best_models/pi_p1.pt'
-MODEL_PATH_Q_P2 = 'data/neural_network_history/best_models/q_p2.pt'
-MODEL_PATH_PI_P2 = 'data/neural_network_history/best_models/pi_p2.pt'
+NUM_GAMES = 66000
+MODEL_PATH_Q_P1 = 'data/neural_network_history/best_models/q_p1_{}g.pt'.format(NUM_GAMES)
+MODEL_PATH_PI_P1 = 'data/neural_network_history/best_models/pi_p1_{}g.pt'.format(NUM_GAMES)
+MODEL_PATH_Q_P2 = 'data/neural_network_history/best_models/q_p2_{}g.pt'.format(NUM_GAMES)
+MODEL_PATH_PI_P2 = 'data/neural_network_history/best_models/pi_p2_{}g.pt'.format(NUM_GAMES)
 
 # define game constants here
 INITIAL_MONEY = 100 * BLINDS[0]

@@ -5,7 +5,6 @@ import numpy as np
 import math
 import pprint as pp
 #import xxhash
-import pickle
 
 
 class ReplayBufferManager:

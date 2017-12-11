@@ -43,6 +43,8 @@ def get_arg_parser():
     parser.set_defaults(cuda=False)
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose')
     parser.set_defaults(verbose=False)
+    parser.add_argument('-ntb', '--no_tensorboard', action='store_true', dest='no_tensorboard')
+    parser.set_defaults(no_tensorboard=False)
     parser.add_argument('--mov_avg_window', default=100, type=int, dest='mov_avg_window',
                         help='moving average for game results')
 
@@ -190,7 +192,7 @@ if __name__ == '__main__':
         raise Exception('if you want to load a model for p1, strategy type should be NFSP')
     if load_model_p2 and strategy_p2 != 'NFSP':
         raise Exception('if you want to load a model for p2, strategy type should be NFSP')
-
+    no_tensorboard = args.no_tensorboard
     experiment_name = ''
     print('running tests with the following setup')
     for k, v in vars(args).items():
@@ -200,7 +202,10 @@ if __name__ == '__main__':
     cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
     with open('data/experiment_log.txt', 'a') as f:
         f.write('{}\n{}\n'.format(experiment_id, experiment_name, cur_t))
-    tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, tb_hostname, tb_port)
+    if no_tensorboard:
+        tb_experiment=None
+    else:
+        tb_experiment, _ = setup_tensorboard(experiment_id, cur_t, tb_hostname, tb_port)
 
     results_dict = {}
     # sometimes we want to skip simulation and view only the latest simulation results
