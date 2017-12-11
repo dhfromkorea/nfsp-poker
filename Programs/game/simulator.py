@@ -6,9 +6,9 @@ from players.player import Player, NeuralFictitiousPlayer
 
 from game.utils import get_last_round, load_model
 from game.game_utils import Deck, set_dealer, blinds, deal, agreement, actions_to_array, array_to_cards, action_to_array, cards_to_array
-from game.config import BLINDS
 from game.state import build_state, create_state_variable_batch
 
+from constant import *
 from models.featurizer import FeaturizerManager
 import time
 import numpy as np
@@ -17,26 +17,6 @@ import pickle
 import models.q_network
 import os.path
 from torch.autograd import Variable
-
-# paths
-SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
-GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
-PLAY_HISTORY_PATH = 'data/play_history/'
-NEURAL_NETWORK_HISTORY_PATH = 'data/neural_network_history/'
-NEURAL_NETWORK_LOSS_PATH = 'data/neural_network_history/loss/'
-EXPERIMENT_PATH = 'data/tensorboard/'
-MODEL_SAVEPATH = 'data/neural_network_history/models/'
-MODEL_PATH_Q_P1 = 'data/neural_network_history/best_models/q_p1.pt'
-MODEL_PATH_PI_P1 = 'data/neural_network_history/best_models/pi_p1.pt'
-MODEL_PATH_Q_P2 = 'data/neural_network_history/best_models/q_p2.pt'
-MODEL_PATH_PI_P2 = 'data/neural_network_history/best_models/pi_p2.pt'
-
-# define game constants here
-INITIAL_MONEY = 100 * BLINDS[0]
-NUM_ROUNDS = 4  # pre, flop, turn, river
-NUM_HIDDEN_LAYERS = 50
-NUM_ACTIONS = 16
-
 strategy_function_map = {'random': strategy_random, 'mirror': strategy_mirror,
                          'RL': strategy_RL, 'saved_model': None}
 
@@ -48,15 +28,6 @@ p_names = ['SB', 'DH']
 
 
 class Simulator:
-    """
-    right now, RL algo, Simulator, ER are all tightly coupled
-    this is bad.
-    TODO: decouple them
-
-    right now, players are not using networks to choose actions
-    TODO: couple players with networks
-    """
-
     def __init__(self,
                  # these should be explicitly passed
                  log_freq,
@@ -76,12 +47,9 @@ class Simulator:
                  strategy_p2,
                  load_model_p1,
                  load_model_p2,
+                 use_entropy_loss,
                  # use default values
                  featurizer_path=SAVED_FEATURIZER_PATH,
-                 game_score_history_path=GAME_SCORE_HISTORY_PATH,
-                 play_history_path=PLAY_HISTORY_PATH,
-                 neural_network_history_path=NEURAL_NETWORK_HISTORY_PATH,
-                 neural_network_loss_path=NEURAL_NETWORK_LOSS_PATH,
                  memory_rl_config={},
                  memory_sl_config={},
                  grad_clip=None,
@@ -111,22 +79,11 @@ class Simulator:
         # historical data
         # 1. game score
         self.games = {'n': 0, '#episodes': 0, 'winnings': {}}
-        #self.game_score_history_path = game_score_history_path
-        # 2. play
-        #self.play_history = {}
-        #self.play_history_path = play_history_path
-        # 3. neural network
-        #self.neural_network_history_path = neural_network_history_path
-        #self.neural_network_history = {}
-        #self.neural_network_loss_path = neural_network_loss_path
-        #self.neural_network_loss = {0: {'q': [], 'pi': []},
-        #                            1: {'q': []}, 'pi': []}
         # 4. tensorboard
         self.tensorboard = tensorboard
         self.experiment_id = experiment_id
 
         # debugging utility variables
-
         self.last_game_start_time = None
         self.last_episode_start_time = None
         self.game_play_speeds = []
@@ -157,8 +114,7 @@ class Simulator:
                player_id=0,
                optimizer=optimizer,
                grad_clip=grad_clip,
-               #neural_network_history=self.neural_network_history,
-               #neural_network_loss=self.neural_network_loss,
+               use_entropy_loss=use_entropy_loss,
                tensorboard=self.tensorboard,
                cuda=cuda)
         Q1 = Q(n_actions=NUM_ACTIONS,
@@ -168,9 +124,8 @@ class Simulator:
                player_id=1,
                optimizer=optimizer,
                grad_clip=grad_clip,
+               use_entropy_loss=use_entropy_loss,
                learning_rate=learning_rate_rl,
-               #neural_network_history=self.neural_network_history,
-               #neural_network_loss=self.neural_network_loss,
                tensorboard=self.tensorboard,
                cuda=cuda)
         Pi0 = Pi(n_actions=NUM_ACTIONS,
@@ -182,8 +137,6 @@ class Simulator:
                  optimizer=optimizer,
                  grad_clip=grad_clip,
                  learning_rate=learning_rate_sl,
-                 #neural_network_history=self.neural_network_history,
-                 #neural_network_loss=self.neural_network_loss,
                  tensorboard=self.tensorboard,
                  cuda=cuda)
         Pi1 = Pi(n_actions=NUM_ACTIONS,
@@ -195,8 +148,6 @@ class Simulator:
                  optimizer=optimizer,
                  grad_clip=grad_clip,
                  learning_rate=learning_rate_sl,
-                 #neural_network_history=self.neural_network_history,
-                 #neural_network_loss=self.neural_network_loss,
                  tensorboard=self.tensorboard,
                  cuda=cuda)
         Q_networks = {0: Q0, 1: Q1}
@@ -337,14 +288,10 @@ class Simulator:
         # WINNER GETS THE MONEY.
         # WATCH OUT! TIES CAN OCCUR. IN THAT CASE, SPLIT
         self.split = False
-        showdown_occured = 0
+        self.showdown_occured = 0
         if not self.fold_occured:
             self._showdown()
-            showdown_occured = 1
-
-        # show down happened, we send data
-        if self.tensorboard is not None:
-            self._send_showdown_data_to_tensorboard(showdown_occured)
+            self.showdown_occured = 1
 
         # these two clauses update the `s`, `is_terminal` and `final_reward` of self.experiences[0/1]
         if self.split:
@@ -364,12 +311,8 @@ class Simulator:
                 if self.players[1].player_type == 'nfsp':
                     self.players[1].remember(self.experiences[1])
 
-        try:
-            #self.update_play_history_with_final_rewards()
-            if self.tensorboard is not None:
-                self._send_data_to_tensorboard()
-        except KeyError:
-            raise KeyError
+        if self.tensorboard is not None:
+            self._send_data_to_tensorboard()
 
         for p in self.players:
             if p.player_type == 'nfsp':
@@ -451,18 +394,6 @@ class Simulator:
             return
         self.player.has_played = True
 
-        # we save play history data here
-        # we're computing exp tuple twice here (ugly..)
-        #self.play_history[self.global_step] = {}
-        #ph = self.play_history[self.global_step]
-        #exp = self.experiences[self.player.id] = self.make_experience(self.player, self.action, self.new_game, self.board, self.pot, self.dealer, self.actions, BLINDS[1], self.global_step, self.b_round)
-        #ph[self.player.id] = {'s': (array_to_cards(exp['s'][0]), array_to_cards(exp['s'][1])), 'a': exp['a'], 'r': 0}
-        #ph['game'] = {
-        #    'episode_index': self.games['#episodes'],
-        #    'to_play': self.to_play,
-        #    'b_round': self.b_round
-        #}
-
         # RL : STORE EXPERIENCES IN MEMORY.
         # Just for the NSFP agents. Note that it is saved BEFORE that the chosen action updates the state
         if self.player.player_type == 'nfsp':
@@ -507,14 +438,6 @@ class Simulator:
             cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
             # fix typo em
             exp_id = self.experiment_id
-            #gh_path = '{}{}_{}.p'.format(self.game_score_history_path, cur_t, exp_id)
-            #ph_path = '{}{}_{}.p'.format(self.play_history_path, cur_t, exp_id)
-            #nnh_path = '{}{}_{}.p'.format(self.neural_network_history_path, cur_t, exp_id)
-            #nnl_path = '{}{}_{}.p'.format(self.neural_network_loss_path, cur_t, exp_id)
-            #self._save_results(self.games['winnings'], gh_path)
-            #self._save_results(self.play_history, ph_path)
-            #self._save_results(self.neural_network_history, nnh_path)
-            #self._save_results(self.neural_network_loss, nnl_path)
 
             # save the trained model
             for p in self.players:
@@ -532,12 +455,6 @@ class Simulator:
 
             # flush data from the memory for gc
             self.games['winnings'] = {}
-            #self.neural_network_history = {}
-            #self.play_history = {}
-            #self.neural_network_loss = {
-            #    0: {'q': [], 'pi': []},
-            #    1: {'q': [], 'pi': []}
-            #}
             print('game results logged')
 
     def _send_data_to_tensorboard(self):
@@ -545,64 +462,55 @@ class Simulator:
         send only the corrected final rewards after every episode
         '''
         cur_t = time.time()
-
-        # define episode length as the # of rounds where any action is taken by any player
-        # currently there seems to be a bug where
-        # self.actions[1] for p1 is [] and p2 [some action] which should not happen
+        data = {}
         for p in self.players:
-            episode_length = 0
-            num_folds = 0
-            num_calls = 0
-            num_checks = 0
-            num_all_ins = 0
-            num_bets = 0
-            num_nulls = 0
-            num_raises = 0
-            all_in_amounts = 0
-            bet_amounts = 0
-            raise_amounts = 0
-            for b_round in range(4):
-                action = self.actions[b_round][p.id]
-                if action == []:
-                    # no action recoded for this round
-                    break
-                episode_length += 1
-                for a in action:
-                    if a.type == 'fold':
-                        num_folds += 1
-                    elif a.type == 'call':
-                        num_calls += 1
-                    elif a.type == 'check':
-                        num_checks += 1
-                    elif a.type == 'all in':
-                        num_all_ins += 1
-                        all_in_amounts += a.value
-                    elif a.type == 'null':
-                        num_nulls += 1
-                    elif a.type == 'bet':
-                        num_bets += 1
-                        bet_amounts += a.value
-                    elif a.type == 'raise':
-                        num_raises += 1
-                        raise_amounts += a.value
-                    else:
-                        raise Exception('unrecognized action type {}'.format(a.type))
-            num_actions = np.sum([num_folds, num_calls, num_checks, num_all_ins, num_bets, num_nulls,
-                           num_raises])
-            assert num_actions >= episode_length, "num_actions {} should be greater than or equal to episode \
-            length {}".format(num_actions, episode_length)
-            self.tensorboard.add_scalar_value('p{}_episode_length'.format(p.id+1), episode_length, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_folds_per_episode'.format(p.id+1), num_folds, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_calls_per_episode'.format(p.id+1), num_calls, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_checks_per_episode'.format(p.id+1), num_checks, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_all_ins_per_episode'.format(p.id+1), num_all_ins, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_nulls_per_episode'.format(p.id+1), num_nulls, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_bets_per_episode'.format(p.id+1), num_bets, cur_t)
-            self.tensorboard.add_scalar_value('p{}_num_raises_per_episode'.format(p.id+1), num_raises, cur_t)
-            self.tensorboard.add_scalar_value('p{}_all_in_amounts'.format(p.id+1), all_in_amounts, cur_t)
-            self.tensorboard.add_scalar_value('p{}_bet_amounts'.format(p.id+1), bet_amounts, cur_t)
-            self.tensorboard.add_scalar_value('p{}_raise_amounts'.format(p.id+1), raise_amounts, cur_t)
-            self.tensorboard.add_scalar_value('p{}_reward'.format(p.id+1), self.total_reward_in_episode[p.id], cur_t)
+            d, epi_len = self._package_data_for_tensorboard(p)
+            data.update(d)
+        game_dict = {'episode_length' : epi_len,
+                     'is_showdown' : self.showdown_occured}
+        data.update(game_dict)
+        self.tensorboard.add_scalar_dict(data)
+
+    def _package_data_for_tensorboard(self, p):
+        data = {}
+        data['p{}_reward'.format(p.id+1)] = self.total_reward_in_episode[p.id]
+        data['p{}_num_folds'.format(p.id+1)] = 0
+        data['p{}_num_calls'.format(p.id+1)] = 0
+        data['p{}_num_checks'.format(p.id+1)] = 0
+        data['p{}_num_all_ins'.format(p.id+1)] = 0
+        data['p{}_num_bets'.format(p.id+1)] = 0
+        data['p{}_num_raises'.format(p.id+1)] = 0
+        data['p{}_all_in_amounts'.format(p.id+1)] = 0
+        data['p{}_bet_amounts'.format(p.id+1)] = 0
+        data['p{}_raise_amounts'.format(p.id+1)] = 0
+        episode_length = 0
+        for b_round in range(4):
+            action = self.actions[b_round][p.id]
+            if action == []:
+                # no action recoded for this round
+                break
+            episode_length += 1
+            for a in action:
+                if a.type == 'fold':
+                    data['p{}_num_folds'.format(p.id+1)] += 1
+                elif a.type == 'call':
+                    data['p{}_num_calls'.format(p.id+1)] += 1
+                elif a.type == 'check':
+                    data['p{}_num_checks'.format(p.id+1)] += 1
+                elif a.type == 'all in':
+                    data['p{}_num_all_ins'.format(p.id+1)] += 1
+                    data['p{}_all_in_amounts'.format(p.id+1)] += a.value
+                elif a.type == 'bet':
+                    data['p{}_num_bets'.format(p.id+1)] += 1
+                    data['p{}_bet_amounts'.format(p.id+1)] += a.value
+                elif a.type == 'raise':
+                    data['p{}_num_raises'.format(p.id+1)] += 1
+                    data['p{}_raise_amounts'.format(p.id+1)] += a.value
+                else:
+                    raise Exception('unrecognized action type {}'.format(a.type))
+
+        return data, episode_length
+
 
     def _send_winnings_data_to_tensorboard(self):
         # logging the last winning results every log frequency

@@ -1,3 +1,5 @@
+from game.config import BLINDS
+
 # paths
 SAVED_FEATURIZER_PATH = 'data/hand_eval/best_models/card_featurizer1.50-10.model.pytorch'
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
