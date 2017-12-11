@@ -11,15 +11,18 @@ Actual Test : python perf_eval_experiments.py -s1 NFSP -s2 Mirror -ng 100000 -ep
 
 '''
 
-import glob as g
 import pickle
 import evaluation.expt_utils as eu
 import argparse
 import game
 from game.simulator import Simulator
 
+import os
+import sys
+import glob as g
 from pycrayon import CrayonClient
 import time
+import signal
 
 GAME_SCORE_HISTORY_PATH = 'data/game_score_history/'
 PLAY_HISTORY_PATH = 'data/play_history/'
@@ -126,6 +129,18 @@ def remove_all_experiments(hostname, port):
     tb = CrayonClient(hostname=hostname, port=port)
     tb.remove_all_experiments()
 
+def setup_kill_signal_handler(simulator):
+    main_process_pid = os.getpid()
+
+    def signal_handler(signal, frame):
+        if os.getpid() == main_process_pid:
+            print('Signal ' + str(signal) + ' detected, saving things.')
+            simulator.save_history_results('_final')
+            print('Saving completed, shutting down...')
+            sys.exit(0)
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == '__main__':
     '''
@@ -229,4 +244,5 @@ if __name__ == '__main__':
                           load_model_p1=load_model_p1,
                           load_model_p2=load_model_p2)
 
+    setup_kill_signal_handler(simulator)
     simulator.start(num_games)

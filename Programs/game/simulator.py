@@ -432,30 +432,27 @@ class Simulator:
     def update_winnings(self):
         self.games['winnings'][self.games['n']] = {self.players[0].stack, self.players[1].stack}
 
-    def save_history_results(self):
-        if self.games['n'] % self.log_freq == 0:
-            # we save all history data here. Clear the dicts after saving them.
-            cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
-            # fix typo em
-            exp_id = self.experiment_id
+    def save_history_results(self, tag=''):
+        # we save all history data here. Clear the dicts after saving them.
+        cur_t = time.strftime('%y%m%d_%H%M%S', time.gmtime())
+        # fix typo em
+        exp_id = self.experiment_id
 
-            # save the trained model
-            for p in self.players:
-                if p.player_type == 'nfsp':
-                    q_model = p.strategy._Q.state_dict()
-                    pi_model = p.strategy._pi.state_dict()
-                    t.save(q_model, '{}{}_{}_q_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1))
-                    t.save(pi_model, '{}{}_{}_pi_{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1))
+        # save the trained model
+        for p in self.players:
+            if p.player_type == 'nfsp':
+                q_model = p.strategy._Q.state_dict()
+                pi_model = p.strategy._pi.state_dict()
+                t.save(q_model, '{}{}_{}_q_{}{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1, tag))
+                t.save(pi_model, '{}{}_{}_pi_{}{}.pt'.format(MODEL_SAVEPATH, cur_t, exp_id, p.id + 1, tag))
 
-            if self.tensorboard is not None:
-                self.tensorboard.to_zip('{}{}_{}'.format(EXPERIMENT_PATH, cur_t, exp_id))
-                self._send_winnings_data_to_tensorboard()
+        if self.tensorboard is not None:
+            self.tensorboard.to_zip('{}{}_{}{}'.format(EXPERIMENT_PATH, cur_t, exp_id, tag))
+            self._send_winnings_data_to_tensorboard()
 
-            print(self.games['n'], " games played")
-
-            # flush data from the memory for gc
-            self.games['winnings'] = {}
-            print('game results logged')
+        print(self.games['n'], " games played and saved")
+        # flush data from the memory for gc
+        self.games['winnings'] = {}
 
     def _send_data_to_tensorboard(self):
         '''
@@ -511,7 +508,6 @@ class Simulator:
 
         return data, episode_length
 
-
     def _send_winnings_data_to_tensorboard(self):
         # logging the last winning results every log frequency
         for res in self.games['winnings'].values():
@@ -555,7 +551,9 @@ class Simulator:
     def _set_new_game(self):
         if self.players[0].stack == 0 or self.players[1].stack == 0:
             self.update_winnings()
-            self.save_history_results()
+
+            if self.games['n'] % self.log_freq == 0:
+                self.save_history_results()
             self.new_game = True
         else:
             self.new_game = False
